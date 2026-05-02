@@ -1,4 +1,4 @@
-# HA Kiosk Gecko
+# ZenPanel
 
 Android kiosk app for Home Assistant dashboards.
 

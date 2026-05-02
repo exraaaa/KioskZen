@@ -16,5 +16,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "HAKioskGecko"
+rootProject.name = "ZenPanel"
 include(":app")

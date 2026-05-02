@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">HA Kiosk Gecko</string>
+    <string name="app_name">ZenPanel</string>
     <string name="settings_title">Kiosk Settings</string>
     <string name="settings_subtitle">Tune the kiosk behavior, browser engine, and access controls.</string>
     <string name="section_browser_and_admin">Browser &amp; Admin Access</string>
