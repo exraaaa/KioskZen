@@ -327,7 +327,7 @@ code {
 .faq p {
   margin: 0;
   color: var(--muted);
-  line-height: 1.6;
+  line-height: 1.52;
   font-size: 0.94rem;
 }
 
@@ -335,6 +335,7 @@ code {
   max-height: 0;
   opacity: 0;
   transition: max-height 340ms cubic-bezier(0.22, 1, 0.36, 1), opacity 260ms ease, padding-bottom 300ms ease;
+  padding-top: 0;
   padding-bottom: 0;
   padding-inline: 14px;
   overflow: hidden;
@@ -354,7 +355,8 @@ code {
 
 .faq-item.open .faq-body {
   opacity: 1;
-  padding-bottom: 12px;
+  padding-top: 2px;
+  padding-bottom: 10px;
 }
 
 .faq-item.open .faq-body > p {

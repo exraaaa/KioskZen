@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260502c" />
+  <link rel="stylesheet" href="styles.css?v=20260502d" />
 </head>
 <body>
   <div class="background-aurora" aria-hidden="true">
@@ -150,7 +150,10 @@
 
         trigger.setAttribute("aria-expanded", "false");
         item.classList.remove("open");
-        body.style.maxHeight = `${body.scrollHeight}px`;
+        if (body.style.maxHeight === "none") {
+          body.style.maxHeight = `${body.scrollHeight + 8}px`;
+        }
+        body.style.maxHeight = `${body.scrollHeight + 8}px`;
         requestAnimationFrame(() => {
           body.style.maxHeight = "0px";
         });
@@ -165,7 +168,7 @@
 
         trigger.setAttribute("aria-expanded", "true");
         item.classList.add("open");
-        body.style.maxHeight = `${body.scrollHeight}px`;
+        body.style.maxHeight = `${body.scrollHeight + 8}px`;
       };
 
       items.forEach((item) => {
@@ -176,6 +179,15 @@
         }
 
         body.style.maxHeight = "0px";
+        body.addEventListener("transitionend", (event) => {
+          if (event.propertyName !== "max-height") {
+            return;
+          }
+
+          if (item.classList.contains("open")) {
+            body.style.maxHeight = "none";
+          }
+        });
 
         trigger.addEventListener("click", () => {
           const isOpen = trigger.getAttribute("aria-expanded") === "true";
