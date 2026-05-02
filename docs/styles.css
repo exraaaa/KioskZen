@@ -19,56 +19,67 @@ body {
   min-height: 100vh;
   font-family: "Plus Jakarta Sans", sans-serif;
   color: var(--text);
-  background:
-    radial-gradient(circle at 12% 15%, rgb(15 191 159 / 17%) 0%, transparent 33%),
-    radial-gradient(circle at 84% 11%, rgb(47 127 255 / 20%) 0%, transparent 34%),
-    var(--bg);
-  background-size: 140% 140%, 140% 140%, auto;
-  animation: backdropShift 22s ease-in-out infinite alternate;
+  background: var(--bg);
   overflow-x: hidden;
+}
+
+.background-aurora {
+  position: fixed;
+  inset: -28vmax;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.background-aurora .blob {
+  position: absolute;
+  width: 62vmax;
+  height: 62vmax;
+  border-radius: 50%;
+  filter: blur(64px);
+  mix-blend-mode: screen;
+  opacity: 0.44;
+  will-change: transform;
+}
+
+.background-aurora .blob.one {
+  top: 2%;
+  left: -6%;
+  background: radial-gradient(circle at 35% 35%, rgb(15 191 159 / 88%), rgb(15 191 159 / 0%) 66%);
+  animation: blobA 16s ease-in-out infinite alternate;
+}
+
+.background-aurora .blob.two {
+  top: -14%;
+  right: 4%;
+  background: radial-gradient(circle at 65% 40%, rgb(47 127 255 / 86%), rgb(47 127 255 / 0%) 67%);
+  animation: blobB 20s ease-in-out infinite alternate;
+}
+
+.background-aurora .blob.three {
+  bottom: -18%;
+  left: 28%;
+  background: radial-gradient(circle at 50% 50%, rgb(26 84 209 / 72%), rgb(26 84 209 / 0%) 70%);
+  animation: blobC 18s ease-in-out infinite alternate;
 }
 
 .background-grid {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  overflow: hidden;
+  z-index: 1;
   background-image:
     linear-gradient(rgb(255 255 255 / 4%) 1px, transparent 1px),
     linear-gradient(90deg, rgb(255 255 255 / 4%) 1px, transparent 1px);
   background-size: 34px 34px;
   mask-image: radial-gradient(circle at center, black 50%, transparent 100%);
-  animation: gridDrift 18s linear infinite;
-}
-
-.background-grid::before,
-.background-grid::after {
-  content: "";
-  position: absolute;
-  width: 46vmax;
-  height: 46vmax;
-  border-radius: 50%;
-  filter: blur(70px);
-  opacity: 0.22;
-}
-
-.background-grid::before {
-  top: -12vmax;
-  left: -10vmax;
-  background: rgb(15 191 159 / 45%);
-  animation: orbFloatA 24s ease-in-out infinite;
-}
-
-.background-grid::after {
-  right: -12vmax;
-  bottom: -16vmax;
-  background: rgb(47 127 255 / 40%);
-  animation: orbFloatB 28s ease-in-out infinite;
+  animation: gridDrift 24s linear infinite;
 }
 
 .wrap {
   width: min(1080px, 92vw);
   margin: 40px auto 54px;
+  position: relative;
+  z-index: 2;
 }
 
 .hero,
@@ -273,43 +284,43 @@ code {
   color: #b7dcff;
 }
 
-.faq details {
+.faq-item {
   border: 1px solid var(--line);
   background: var(--panel-2);
   border-radius: 12px;
-  padding: 0 14px;
-  transition: border-color 220ms ease, background-color 220ms ease, transform 220ms ease;
+  padding: 0;
+  transition: border-color 240ms ease, background-color 240ms ease, transform 240ms ease;
 }
 
-.faq details + details {
+.faq-item + .faq-item {
   margin-top: 10px;
 }
 
-.faq summary {
+.faq-trigger {
+  width: 100%;
+  background: transparent;
+  border: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  list-style: none;
-  padding: 13px 0;
+  text-align: left;
+  padding: 13px 14px;
   cursor: pointer;
   font-weight: 700;
+  font: inherit;
+  color: var(--text);
   user-select: none;
 }
 
-.faq summary::-webkit-details-marker {
-  display: none;
-}
-
-.faq summary::after {
-  content: "";
+.faq-icon {
   width: 8px;
   height: 8px;
   border-right: 2px solid #8caad2;
   border-bottom: 2px solid #8caad2;
   transform: rotate(45deg);
   transition: transform 240ms ease, border-color 240ms ease;
-  margin-right: 2px;
+  margin-right: 4px;
   flex-shrink: 0;
 }
 
@@ -321,35 +332,32 @@ code {
 }
 
 .faq-body {
-  display: grid;
-  grid-template-rows: 0fr;
+  max-height: 0;
   opacity: 0;
-  transition: grid-template-rows 300ms ease, opacity 240ms ease, padding-bottom 300ms ease;
+  transition: max-height 340ms cubic-bezier(0.22, 1, 0.36, 1), opacity 260ms ease, padding-bottom 300ms ease;
   padding-bottom: 0;
-}
-
-.faq-body > p {
+  padding-inline: 14px;
   overflow: hidden;
+  will-change: max-height;
 }
 
-.faq details[open] {
+.faq-item.open {
   border-color: #326292;
   background: #102137;
   transform: translateY(-1px);
 }
 
-.faq details[open] summary::after {
+.faq-item.open .faq-icon {
   transform: rotate(225deg);
   border-color: #8fd4ff;
 }
 
-.faq details[open] .faq-body {
-  grid-template-rows: 1fr;
+.faq-item.open .faq-body {
   opacity: 1;
   padding-bottom: 14px;
 }
 
-.faq details[open] .faq-body > p {
+.faq-item.open .faq-body > p {
   margin-top: 2px;
 }
 
@@ -409,45 +417,48 @@ code {
   }
 }
 
-@keyframes backdropShift {
-  0% {
-    background-position: 0% 0%, 100% 0%, 0 0;
-  }
-  100% {
-    background-position: 14% 8%, 86% 18%, 0 0;
-  }
-}
-
 @keyframes gridDrift {
   0% {
     transform: translate3d(0, 0, 0);
   }
   100% {
-    transform: translate3d(-14px, -10px, 0);
+    transform: translate3d(-22px, -16px, 0);
   }
 }
 
-@keyframes orbFloatA {
+@keyframes blobA {
   0% {
     transform: translate3d(0, 0, 0) scale(1);
   }
   50% {
-    transform: translate3d(8vmax, 6vmax, 0) scale(1.1);
+    transform: translate3d(10vmax, 8vmax, 0) scale(1.16);
   }
   100% {
-    transform: translate3d(4vmax, 10vmax, 0) scale(0.95);
+    transform: translate3d(5vmax, 13vmax, 0) scale(0.94);
   }
 }
 
-@keyframes orbFloatB {
+@keyframes blobB {
   0% {
     transform: translate3d(0, 0, 0) scale(1);
   }
   50% {
-    transform: translate3d(-8vmax, -5vmax, 0) scale(1.06);
+    transform: translate3d(-10vmax, -6vmax, 0) scale(1.12);
   }
   100% {
-    transform: translate3d(-5vmax, -10vmax, 0) scale(0.92);
+    transform: translate3d(-7vmax, -14vmax, 0) scale(0.92);
+  }
+}
+
+@keyframes blobC {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(-7vmax, -4vmax, 0) scale(1.08);
+  }
+  100% {
+    transform: translate3d(8vmax, -12vmax, 0) scale(0.95);
   }
 }
 

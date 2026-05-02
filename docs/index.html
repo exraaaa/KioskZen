@@ -8,9 +8,14 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260502b" />
+  <link rel="stylesheet" href="styles.css?v=20260502c" />
 </head>
 <body>
+  <div class="background-aurora" aria-hidden="true">
+    <span class="blob one"></span>
+    <span class="blob two"></span>
+    <span class="blob three"></span>
+  </div>
   <div class="background-grid" aria-hidden="true"></div>
   <main class="wrap">
     <header class="hero">
@@ -97,24 +102,33 @@
     <section class="section">
       <h2>FAQ</h2>
       <div class="faq">
-        <details>
-          <summary>Why GeckoView support?</summary>
-          <div class="faq-body">
+        <article class="faq-item">
+          <button class="faq-trigger" type="button" id="faq-gecko-btn" aria-expanded="false" aria-controls="faq-gecko">
+            <span>Why GeckoView support?</span>
+            <span class="faq-icon" aria-hidden="true"></span>
+          </button>
+          <div class="faq-body" id="faq-gecko" role="region" aria-labelledby="faq-gecko-btn">
             <p>Many camera streams and media pipelines that fail in some WebView-based kiosks work better under GeckoView.</p>
           </div>
-        </details>
-        <details>
-          <summary>Can I auto-start after reboot?</summary>
-          <div class="faq-body">
+        </article>
+        <article class="faq-item">
+          <button class="faq-trigger" type="button" id="faq-boot-btn" aria-expanded="false" aria-controls="faq-boot">
+            <span>Can I auto-start after reboot?</span>
+            <span class="faq-icon" aria-hidden="true"></span>
+          </button>
+          <div class="faq-body" id="faq-boot" role="region" aria-labelledby="faq-boot-btn">
             <p>Yes, there is an auto-start-on-boot toggle in settings.</p>
           </div>
-        </details>
-        <details>
-          <summary>Can I run this offline/local-only?</summary>
-          <div class="faq-body">
+        </article>
+        <article class="faq-item">
+          <button class="faq-trigger" type="button" id="faq-offline-btn" aria-expanded="false" aria-controls="faq-offline">
+            <span>Can I run this offline/local-only?</span>
+            <span class="faq-icon" aria-hidden="true"></span>
+          </button>
+          <div class="faq-body" id="faq-offline" role="region" aria-labelledby="faq-offline-btn">
             <p>Yes. It works with local Home Assistant instances and LAN addresses/hostnames.</p>
           </div>
-        </details>
+        </article>
       </div>
     </section>
 
@@ -124,6 +138,63 @@
     </section>
   </main>
   <script>
+    (() => {
+      const items = Array.from(document.querySelectorAll(".faq-item"));
+
+      const closeItem = (item) => {
+        const trigger = item.querySelector(".faq-trigger");
+        const body = item.querySelector(".faq-body");
+        if (!trigger || !body) {
+          return;
+        }
+
+        trigger.setAttribute("aria-expanded", "false");
+        item.classList.remove("open");
+        body.style.maxHeight = `${body.scrollHeight}px`;
+        requestAnimationFrame(() => {
+          body.style.maxHeight = "0px";
+        });
+      };
+
+      const openItem = (item) => {
+        const trigger = item.querySelector(".faq-trigger");
+        const body = item.querySelector(".faq-body");
+        if (!trigger || !body) {
+          return;
+        }
+
+        trigger.setAttribute("aria-expanded", "true");
+        item.classList.add("open");
+        body.style.maxHeight = `${body.scrollHeight}px`;
+      };
+
+      items.forEach((item) => {
+        const trigger = item.querySelector(".faq-trigger");
+        const body = item.querySelector(".faq-body");
+        if (!trigger || !body) {
+          return;
+        }
+
+        body.style.maxHeight = "0px";
+
+        trigger.addEventListener("click", () => {
+          const isOpen = trigger.getAttribute("aria-expanded") === "true";
+          if (isOpen) {
+            closeItem(item);
+            return;
+          }
+
+          items.forEach((other) => {
+            if (other !== item) {
+              closeItem(other);
+            }
+          });
+
+          openItem(item);
+        });
+      });
+    })();
+
     (async () => {
       const repo = "alexrafaelhaidu/KioskZen";
       const api = `https://api.github.com/repos/${repo}/releases/latest`;
