@@ -305,7 +305,7 @@ code {
   justify-content: space-between;
   gap: 12px;
   text-align: left;
-  padding: 13px 14px;
+  padding: 10px 14px;
   cursor: pointer;
   font-weight: 700;
   font: inherit;
@@ -354,11 +354,11 @@ code {
 
 .faq-item.open .faq-body {
   opacity: 1;
-  padding-bottom: 14px;
+  padding-bottom: 12px;
 }
 
 .faq-item.open .faq-body > p {
-  margin-top: 2px;
+  margin-top: 0;
 }
 
 .foot {
