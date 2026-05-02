@@ -1,6 +1,8 @@
 # KioskZen
 
-Android kiosk app for Home Assistant dashboards.
+KioskZen is a free, open source Android kiosk app for Home Assistant dashboards. 
+A fully free alternative to Fully Kiosk Browser and WallPanel, 
+with no paywalls or feature locks.
 
 Website:
 [https://alexrafaelhaidu.github.io/KioskZen/](https://alexrafaelhaidu.github.io/KioskZen/)
