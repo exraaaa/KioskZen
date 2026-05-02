@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">HA Kiosk Gecko</string>
+    <string name="settings_title">Kiosk Settings</string>
+    <string name="settings_subtitle">Tune the kiosk behavior, browser engine, and access controls.</string>
+    <string name="section_browser_and_admin">Browser &amp; Admin Access</string>
+    <string name="section_dashboard">Dashboard Source</string>
+    <string name="section_behavior">Kiosk Behavior</string>
+    <string name="section_actions">Actions</string>
+    <string name="browser_engine">Browser engine</string>
+    <string name="engine_gecko">GeckoView (Firefox engine)</string>
+    <string name="engine_webview">Android WebView</string>
+    <string name="engine_chromium">Chromium (in-app fullscreen)</string>
+    <string name="admin_password">Admin password</string>
+    <string name="confirm_admin_password">Confirm admin password</string>
+    <string name="set_admin_password">Set admin password</string>
+    <string name="clear_admin_password">Clear admin password</string>
+    <string name="admin_password_set">Admin password is set</string>
+    <string name="admin_password_not_set">Admin password is not set</string>
+    <string name="enter_admin_password">Enter admin password</string>
+    <string name="admin_password_hint">Password</string>
+    <string name="unlock">Unlock</string>
+    <string name="invalid_admin_password">Incorrect password</string>
+    <string name="password_set_success">Admin password saved</string>
+    <string name="password_cleared_success">Admin password cleared</string>
+    <string name="password_mismatch">Passwords do not match</string>
+    <string name="password_too_short">Use at least 4 characters</string>
+    <string name="home_assistant_url">Home Assistant URL</string>
+    <string name="dashboard_path">Dashboard path</string>
+    <string name="reload_interval_seconds">Reload interval (seconds)</string>
+    <string name="append_kiosk_auto">Append ?kiosk automatically</string>
+    <string name="keep_screen_on">Keep screen always on</string>
+    <string name="auto_start_boot">Auto-start after boot</string>
+    <string name="fullscreen_mode">Fullscreen immersive mode</string>
+    <string name="effective_url">Effective dashboard URL</string>
+    <string name="save_settings">Save settings</string>
+    <string name="reload_dashboard">Reload dashboard</string>
+    <string name="test_url">Test URL</string>
+    <string name="testing_url">Testing...</string>
+    <string name="reset_defaults">Reset to defaults</string>
+    <string name="admin_gesture_desc">Hidden admin gesture zone</string>
+</resources>

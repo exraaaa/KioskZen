@@ -1,0 +1,23 @@
+# Android / Gradle
+.gradle/
+build/
+**/build/
+.kotlin/
+
+# Android Studio
+.idea/
+*.iml
+
+# Local config
+local.properties
+.android/
+.gradle-home/
+.gradle-tmp/
+
+# Temp Gradle distribution used during setup
+gradle-8.7/
+gradle-8.7-bin.zip
+
+# OS noise
+Thumbs.db
+.DS_Store
