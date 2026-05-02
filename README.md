@@ -3,7 +3,7 @@
 Android kiosk app for Home Assistant dashboards.
 
 Website:
-`https://alexrafaelhaidu.github.io/KioskZen/`
+[https://alexrafaelhaidu.github.io/KioskZen/](https://alexrafaelhaidu.github.io/KioskZen/)
 
 This app was built to solve one specific problem: camera/video streams that work in Firefox but fail in many WebView-only kiosk apps.
 
