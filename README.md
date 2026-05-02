@@ -21,7 +21,7 @@ This app was built to solve one specific problem: camera/video streams that work
 
 - Home Assistant base URL
 - Dashboard path
-- Auto-append `?kiosk`
+- Auto-append `?kiosk` (Make sure you have "kiosk-mode" installed via HACS)
 - Reload interval
 - Fullscreen on/off
 - Keep screen on on/off
