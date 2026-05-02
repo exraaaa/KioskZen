@@ -7,42 +7,115 @@
   <meta name="description" content="KioskZen is a secure Android kiosk app for Home Assistant dashboards with GeckoView support." />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <main class="shell">
-    <p class="eyebrow">Home Assistant Kiosk Browser</p>
-    <h1>KioskZen</h1>
-    <p class="lead">
-      A fullscreen Android kiosk app designed for Home Assistant dashboards, with GeckoView support
-      for better camera and media compatibility.
-    </p>
+  <div class="background-grid" aria-hidden="true"></div>
+  <main class="wrap">
+    <header class="hero">
+      <p class="eyebrow">Android Kiosk Browser for Home Assistant</p>
+      <h1>KioskZen</h1>
+      <p class="lead">
+        Built for wall tablets and dedicated dashboard screens. KioskZen gives you fullscreen
+        reliability, better media compatibility with GeckoView, and practical security controls.
+      </p>
 
-    <div class="actions">
-      <a class="btn primary" href="https://github.com/alexrafaelhaidu/KioskZen/releases/latest/download/KioskZen-v1.1.0.apk">Download APK</a>
-      <a class="btn secondary" href="https://github.com/alexrafaelhaidu/KioskZen/releases/latest">Release Notes</a>
-      <a class="btn ghost" href="https://github.com/alexrafaelhaidu/KioskZen">Source Code</a>
-    </div>
+      <div class="actions">
+        <a class="btn primary" href="https://github.com/alexrafaelhaidu/KioskZen/releases/latest/download/KioskZen-v1.1.0.apk">Download APK</a>
+        <a class="btn secondary" href="https://github.com/alexrafaelhaidu/KioskZen/releases/latest">Release Notes</a>
+        <a class="btn ghost" href="https://github.com/alexrafaelhaidu/KioskZen">GitHub</a>
+      </div>
 
-    <section class="grid">
-      <article class="card">
-        <h2>Reliable Kiosk Mode</h2>
-        <p>Immersive fullscreen, keep-screen-on option, auto-reload after crashes or network loss, and boot auto-start.</p>
-      </article>
-      <article class="card">
-        <h2>Engine Flexibility</h2>
-        <p>Switch between GeckoView, WebView, and Chromium-style profile from settings without leaving the app.</p>
-      </article>
-      <article class="card">
-        <h2>Security Focused</h2>
-        <p>Hardened defaults with stricter permissions, backup protection, origin checks, and stronger password storage.</p>
-      </article>
+      <ul class="meta">
+        <li><span>Current Release</span><strong>v1.1.0</strong></li>
+        <li><span>Android</span><strong>8.0+ (API 26+)</strong></li>
+        <li><span>Default URL</span><strong>homeassistant.local</strong></li>
+      </ul>
+    </header>
+
+    <section class="section">
+      <h2>What You Get</h2>
+      <div class="grid3">
+        <article class="card">
+          <h3>Kiosk-First UX</h3>
+          <p>Immersive fullscreen, keep-screen-on option, hidden admin gesture (top-right tap x5), and quick dashboard reload controls.</p>
+        </article>
+        <article class="card">
+          <h3>Engine Choice</h3>
+          <p>Switch between GeckoView, Android WebView, and Chromium-style profile from settings to match your dashboard behavior.</p>
+        </article>
+        <article class="card">
+          <h3>Recovery Built In</h3>
+          <p>Automatic retry on network drops, process crashes, and page failures so wall dashboards recover without manual intervention.</p>
+        </article>
+      </div>
     </section>
 
-    <p class="footnote">
-      Parts of this codebase were built with AI-assisted tooling, then reviewed and adjusted manually.
-    </p>
+    <section class="section">
+      <h2>Security & Privacy</h2>
+      <div class="grid2">
+        <article class="card">
+          <h3>Hardened Defaults</h3>
+          <ul>
+            <li>Android backup export disabled</li>
+            <li>Secure window mode enabled</li>
+            <li>Permission grants restricted to trusted Home Assistant origin</li>
+            <li>Safer WebView settings and blocked unsupported top-level schemes</li>
+          </ul>
+        </article>
+        <article class="card">
+          <h3>Admin Access Protection</h3>
+          <ul>
+            <li>Optional admin password gate before settings</li>
+            <li>PBKDF2 salted password hashing</li>
+            <li>Legacy hash values auto-migrate after successful login</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Quick Setup</h2>
+      <ol class="steps">
+        <li>Install the latest APK from Releases.</li>
+        <li>Open hidden admin area (tap top-right corner 5 times).</li>
+        <li>Set Home Assistant base URL and dashboard path.</li>
+        <li>Choose your browser engine and enable optional kiosk toggles.</li>
+        <li>Tap reload and mount the tablet.</li>
+      </ol>
+    </section>
+
+    <section class="section">
+      <h2>Compatibility Notes</h2>
+      <div class="note">
+        <p>For dashboards using <code>?kiosk</code>, install <code>kiosk-mode</code> via HACS in Home Assistant.</p>
+        <p>For best privacy, prefer <code>https://</code> Home Assistant URLs whenever available.</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>FAQ</h2>
+      <div class="faq">
+        <details>
+          <summary>Why GeckoView support?</summary>
+          <p>Many camera streams and media pipelines that fail in some WebView-based kiosks work better under GeckoView.</p>
+        </details>
+        <details>
+          <summary>Can I auto-start after reboot?</summary>
+          <p>Yes, there is an auto-start-on-boot toggle in settings.</p>
+        </details>
+        <details>
+          <summary>Can I run this offline/local-only?</summary>
+          <p>Yes. It works with local Home Assistant instances and LAN addresses/hostnames.</p>
+        </details>
+      </div>
+    </section>
+
+    <section class="section foot">
+      <p>Parts of this codebase were built with AI-assisted tooling, then reviewed and adjusted manually.</p>
+      <p><a href="https://github.com/alexrafaelhaidu/KioskZen/releases/latest">Get latest release</a></p>
+    </section>
   </main>
 </body>
 </html>
