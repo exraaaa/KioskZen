@@ -35,14 +35,16 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun bindActions() {
         binding.btnSaveSettings.setOnClickListener {
-            saveSettings(reloadNow = false)
-            Toast.makeText(this, "Settings saved", Toast.LENGTH_SHORT).show()
+            if (saveSettings(reloadNow = false)) {
+                Toast.makeText(this, "Settings saved", Toast.LENGTH_SHORT).show()
+            }
         }
 
         binding.btnReloadDashboard.setOnClickListener {
-            saveSettings(reloadNow = true)
-            setResult(RESULT_OK, intentWithReload())
-            finish()
+            if (saveSettings(reloadNow = true)) {
+                setResult(RESULT_OK, intentWithReload())
+                finish()
+            }
         }
 
         binding.btnResetDefaults.setOnClickListener {
@@ -109,14 +111,25 @@ class SettingsActivity : AppCompatActivity() {
         )
     }
 
-    private fun saveSettings(reloadNow: Boolean) {
+    private fun saveSettings(reloadNow: Boolean): Boolean {
         val settings = readSettingsFromUi()
+        val normalizedBaseUrl = KioskPreferences.normalizeBaseUrl(settings.homeAssistantUrl)
+        if (!KioskPreferences.isHttpOrHttpsUrl(normalizedBaseUrl)) {
+            Toast.makeText(this, getString(R.string.invalid_home_assistant_url), Toast.LENGTH_SHORT)
+                .show()
+            return false
+        }
+
         prefs.save(settings)
         binding.currentUrlValue.text = prefs.buildDashboardUrl(settings)
+        if (normalizedBaseUrl.startsWith("http://", ignoreCase = true)) {
+            Toast.makeText(this, getString(R.string.warning_cleartext_http), Toast.LENGTH_LONG).show()
+        }
 
         if (reloadNow) {
             setResult(RESULT_OK, intentWithReload())
         }
+        return true
     }
 
     private fun saveAdminPassword() {
@@ -148,6 +161,12 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun testUrl(url: String) {
+        if (!KioskPreferences.isHttpOrHttpsUrl(url)) {
+            Toast.makeText(this, getString(R.string.invalid_home_assistant_url), Toast.LENGTH_SHORT)
+                .show()
+            return
+        }
+
         binding.btnTestUrl.isEnabled = false
         binding.btnTestUrl.text = getString(R.string.testing_url)
 

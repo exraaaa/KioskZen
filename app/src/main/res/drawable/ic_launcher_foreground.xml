@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:gravity="top|start"
+        android:height="62.7dp"
+        android:left="19.9dp"
+        android:top="22.6dp"
+        android:width="22.1dp">
+        <shape android:shape="rectangle">
+            <corners android:radius="4.7dp" />
+            <solid android:color="@android:color/black" />
+        </shape>
+    </item>
+
+    <item
+        android:gravity="top|start"
+        android:height="23.2dp"
+        android:left="44.8dp"
+        android:top="22.7dp"
+        android:width="16.5dp">
+        <shape android:shape="rectangle">
+            <corners android:radius="3.7dp" />
+            <solid android:color="@android:color/black" />
+        </shape>
+    </item>
+
+    <item
+        android:gravity="top|start"
+        android:height="37.1dp"
+        android:left="44.8dp"
+        android:top="48.4dp"
+        android:width="16.5dp">
+        <shape android:shape="rectangle">
+            <corners android:radius="4.3dp" />
+            <solid android:color="@android:color/black" />
+        </shape>
+    </item>
+
+    <item
+        android:gravity="top|start"
+        android:height="62.7dp"
+        android:left="64.0dp"
+        android:top="22.6dp"
+        android:width="11.7dp">
+        <shape android:shape="rectangle">
+            <corners android:radius="3.4dp" />
+            <solid android:color="@android:color/black" />
+        </shape>
+    </item>
+
+    <item
+        android:gravity="top|start"
+        android:height="34.6dp"
+        android:left="78.4dp"
+        android:top="22.6dp"
+        android:width="7.7dp">
+        <shape android:shape="rectangle">
+            <corners android:radius="2.3dp" />
+            <solid android:color="@android:color/black" />
+        </shape>
+    </item>
+
+    <item
+        android:gravity="top|start"
+        android:height="25.9dp"
+        android:left="78.4dp"
+        android:top="59.4dp"
+        android:width="7.7dp">
+        <shape android:shape="rectangle">
+            <corners android:radius="2.2dp" />
+            <solid android:color="@android:color/black" />
+        </shape>
+    </item>
+</layer-list>

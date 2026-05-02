@@ -1,4 +1,4 @@
-# ZenPanel
+# KioskZen
 
 Android kiosk app for Home Assistant dashboards.
 
@@ -30,7 +30,7 @@ This app was built to solve one specific problem: camera/video streams that work
 
 Default dashboard URL:
 
-`http://192.168.0.231:8123/dashboard-tablet/panel?kiosk`
+`http://homeassistant.local:8123/dashboard-tablet/panel?kiosk`
 
 ## Build requirements
 
@@ -48,13 +48,16 @@ Default dashboard URL:
 
 ```powershell
 .\gradlew.bat assembleDebug
-$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe install -r .\app\build\outputs\apk\debug\app-debug.apk
+Copy-Item .\app\build\outputs\apk\debug\app-debug.apk .\app\build\outputs\apk\debug\KioskZen-v1.0.0.apk -Force
+$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe install -r .\app\build\outputs\apk\debug\KioskZen-v1.0.0.apk
 ```
 
 ## Notes
 
 - If you use Chromium mode, it stays inside the app (so kiosk fullscreen and admin gesture still work).
 - For camera/mic streams, confirm Android runtime permissions when prompted.
+- Backup extraction is disabled (`allowBackup=false`) to avoid preference leakage through Android backups.
+- For best privacy, use an `https://` Home Assistant URL. `http://` still works for local setups but is unencrypted.
 
 ---
 

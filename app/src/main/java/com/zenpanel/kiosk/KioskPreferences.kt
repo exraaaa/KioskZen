@@ -2,7 +2,12 @@ package com.zenpanel.kiosk
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.net.Uri
+import android.util.Base64
 import java.security.MessageDigest
+import java.security.SecureRandom
+import javax.crypto.SecretKeyFactory
+import javax.crypto.spec.PBEKeySpec
 import kotlin.math.max
 
 enum class BrowserEngine {
@@ -88,11 +93,21 @@ class KioskPreferences(context: Context) {
     }
 
     fun verifyAdminPassword(candidate: String): Boolean {
-        val stored = prefs.getString(KEY_ADMIN_PASSWORD_HASH, "") ?: ""
+        val stored = prefs.getString(KEY_ADMIN_PASSWORD_HASH, "").orEmpty()
         if (stored.isBlank()) {
             return candidate.isBlank()
         }
-        return stored == hashPassword(candidate)
+
+        val normalized = candidate.trim()
+        return if (stored.startsWith(PASSWORD_HASH_PREFIX)) {
+            verifyPbkdf2Password(stored, normalized)
+        } else {
+            val legacyMatches = stored == hashLegacyPassword(normalized)
+            if (legacyMatches) {
+                setAdminPassword(normalized)
+            }
+            legacyMatches
+        }
     }
 
     fun setAdminPassword(rawPassword: String) {
@@ -102,7 +117,7 @@ class KioskPreferences(context: Context) {
             return
         }
         prefs.edit()
-            .putString(KEY_ADMIN_PASSWORD_HASH, hashPassword(normalized))
+            .putString(KEY_ADMIN_PASSWORD_HASH, createPbkdf2Hash(normalized))
             .apply()
     }
 
@@ -113,7 +128,12 @@ class KioskPreferences(context: Context) {
     }
 
     fun buildDashboardUrl(settings: KioskSettings = load()): String {
-        val base = normalizeBaseUrl(settings.homeAssistantUrl).trimEnd('/')
+        val normalizedBase = normalizeBaseUrl(settings.homeAssistantUrl)
+        val base = if (isHttpOrHttpsUrl(normalizedBase)) {
+            normalizedBase
+        } else {
+            DEFAULT_HOME_ASSISTANT_URL
+        }.trimEnd('/')
         val path = normalizeDashboardPath(settings.dashboardPath)
         var url = if (path.isBlank()) {
             base
@@ -141,9 +161,13 @@ class KioskPreferences(context: Context) {
         private const val KEY_FULLSCREEN = "fullscreen"
 
         private val KIOSK_QUERY_REGEX = Regex("([?&])kiosk(=|&|$)")
+        private const val PASSWORD_HASH_PREFIX = "pbkdf2_sha256"
+        private const val PBKDF2_ITERATIONS = 310_000
+        private const val PBKDF2_KEY_LENGTH_BITS = 256
+        private const val PBKDF2_SALT_BYTES = 16
 
         val DEFAULT_BROWSER_ENGINE = BrowserEngine.GECKO
-        const val DEFAULT_HOME_ASSISTANT_URL = "http://192.168.0.231:8123"
+        const val DEFAULT_HOME_ASSISTANT_URL = "http://homeassistant.local:8123"
         const val DEFAULT_DASHBOARD_PATH = "dashboard-tablet/panel"
         const val DEFAULT_APPEND_KIOSK = true
         const val DEFAULT_RELOAD_INTERVAL_SECONDS = 20
@@ -154,10 +178,18 @@ class KioskPreferences(context: Context) {
 
         fun normalizeBaseUrl(value: String): String {
             val trimmed = value.trim().ifBlank { DEFAULT_HOME_ASSISTANT_URL }
-            return if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+            val withScheme = if (
+                trimmed.startsWith("http://", ignoreCase = true) ||
+                trimmed.startsWith("https://", ignoreCase = true)
+            ) {
                 trimmed
             } else {
                 "http://$trimmed"
+            }
+            return try {
+                Uri.parse(withScheme).normalizeScheme().toString()
+            } catch (_: Exception) {
+                withScheme
             }
         }
 
@@ -165,7 +197,51 @@ class KioskPreferences(context: Context) {
             return value.trim().trimStart('/')
         }
 
-        private fun hashPassword(raw: String): String {
+        fun isHttpOrHttpsUrl(url: String): Boolean {
+            return try {
+                val uri = Uri.parse(url)
+                val scheme = uri.scheme?.lowercase()
+                val host = uri.host
+                (scheme == "http" || scheme == "https") && !host.isNullOrBlank()
+            } catch (_: Exception) {
+                false
+            }
+        }
+
+        private fun createPbkdf2Hash(rawPassword: String): String {
+            val salt = ByteArray(PBKDF2_SALT_BYTES).also { SecureRandom().nextBytes(it) }
+            val derived = pbkdf2(rawPassword, salt, PBKDF2_ITERATIONS)
+            val encodedSalt = Base64.encodeToString(salt, Base64.NO_WRAP)
+            val encodedHash = Base64.encodeToString(derived, Base64.NO_WRAP)
+            return "$PASSWORD_HASH_PREFIX:$PBKDF2_ITERATIONS:$encodedSalt:$encodedHash"
+        }
+
+        private fun verifyPbkdf2Password(stored: String, rawPassword: String): Boolean {
+            val parts = stored.split(':')
+            if (parts.size != 4 || parts[0] != PASSWORD_HASH_PREFIX) {
+                return false
+            }
+
+            val iterations = parts[1].toIntOrNull() ?: return false
+            val salt = runCatching { Base64.decode(parts[2], Base64.DEFAULT) }.getOrNull()
+                ?: return false
+            val expected = runCatching { Base64.decode(parts[3], Base64.DEFAULT) }.getOrNull()
+                ?: return false
+
+            val candidate = pbkdf2(rawPassword, salt, iterations)
+            return MessageDigest.isEqual(candidate, expected)
+        }
+
+        private fun pbkdf2(rawPassword: String, salt: ByteArray, iterations: Int): ByteArray {
+            val spec = PBEKeySpec(rawPassword.toCharArray(), salt, iterations, PBKDF2_KEY_LENGTH_BITS)
+            return try {
+                SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).encoded
+            } finally {
+                spec.clearPassword()
+            }
+        }
+
+        private fun hashLegacyPassword(raw: String): String {
             val digest = MessageDigest.getInstance("SHA-256")
             val bytes = digest.digest(raw.toByteArray(Charsets.UTF_8))
             return bytes.joinToString(separator = "") { byte -> "%02x".format(byte) }

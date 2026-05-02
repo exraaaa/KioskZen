@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">ZenPanel</string>
+    <string name="app_name">KioskZen</string>
     <string name="settings_title">Kiosk Settings</string>
     <string name="settings_subtitle">Tune the kiosk behavior, browser engine, and access controls.</string>
     <string name="section_browser_and_admin">Browser &amp; Admin Access</string>
@@ -25,6 +25,8 @@
     <string name="password_cleared_success">Admin password cleared</string>
     <string name="password_mismatch">Passwords do not match</string>
     <string name="password_too_short">Use at least 4 characters</string>
+    <string name="invalid_home_assistant_url">Enter a valid Home Assistant URL (http:// or https://).</string>
+    <string name="warning_cleartext_http">Warning: HTTP traffic is unencrypted. Prefer HTTPS when possible.</string>
     <string name="home_assistant_url">Home Assistant URL</string>
     <string name="dashboard_path">Dashboard path</string>
     <string name="reload_interval_seconds">Reload interval (seconds)</string>

@@ -11,7 +11,9 @@ build/
 # Local config
 local.properties
 .android/
+.android-*/
 .gradle-home/
+.gradle-home-*/
 .gradle-tmp/
 
 # Temp Gradle distribution used during setup
@@ -21,3 +23,11 @@ gradle-8.7-bin.zip
 # OS noise
 Thumbs.db
 .DS_Store
+
+# Branding / icon assets (local)
+ZenPanel*.svg
+ZenPanel*.png
+logo*.svg
+logo*.png
+icon*.svg
+icon*.png

@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.ConnectivityManager
+import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -34,6 +35,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import com.zenpanel.kiosk.databinding.ActivityMainBinding
+import org.mozilla.geckoview.AllowOrDeny
 import org.mozilla.geckoview.GeckoResult
 import org.mozilla.geckoview.GeckoRuntime
 import org.mozilla.geckoview.GeckoRuntimeSettings
@@ -49,10 +51,14 @@ class MainActivity : AppCompatActivity() {
     private var webViewConfigured = false
     private var defaultWebViewUserAgent: String? = null
     private var currentEngine: BrowserEngine? = null
+    private var activeSettings: KioskSettings? = null
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private var pendingRetry: Runnable? = null
     private var pendingPermissionCallback: GeckoSession.PermissionDelegate.Callback? = null
+    private var pendingMediaPermissionCallback: GeckoSession.PermissionDelegate.MediaCallback? = null
+    private var pendingMediaVideoSources: Array<GeckoSession.PermissionDelegate.MediaSource>? = null
+    private var pendingMediaAudioSources: Array<GeckoSession.PermissionDelegate.MediaSource>? = null
     private var pendingWebPermissionRequest: PermissionRequest? = null
 
     private var tapCount = 0
@@ -77,6 +83,20 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             pendingWebPermissionRequest = null
+
+            pendingMediaPermissionCallback?.let { callback ->
+                if (grantedAll) {
+                    callback.grant(
+                        pendingMediaVideoSources?.firstOrNull(),
+                        pendingMediaAudioSources?.firstOrNull()
+                    )
+                } else {
+                    callback.reject()
+                }
+            }
+            pendingMediaPermissionCallback = null
+            pendingMediaVideoSources = null
+            pendingMediaAudioSources = null
         }
 
     private val settingsLauncher =
@@ -117,6 +137,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         prefs = KioskPreferences(this)
+        WebView.setWebContentsDebuggingEnabled(false)
 
         setupAdminGesture()
         registerNetworkMonitoring()
@@ -209,6 +230,7 @@ class MainActivity : AppCompatActivity() {
         pendingRetry = null
 
         val settings = prefs.load()
+        activeSettings = settings
         switchEngine(settings.browserEngine)
         val url = prefs.buildDashboardUrl(settings)
 
@@ -264,18 +286,25 @@ class MainActivity : AppCompatActivity() {
             settings.loadsImagesAutomatically = true
             settings.useWideViewPort = true
             settings.loadWithOverviewMode = true
-            settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+            settings.javaScriptCanOpenWindowsAutomatically = false
+            settings.setSupportMultipleWindows(false)
+            settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
             settings.allowFileAccess = false
-            settings.allowContentAccess = true
+            settings.allowContentAccess = false
             settings.safeBrowsingEnabled = true
 
             CookieManager.getInstance().setAcceptCookie(true)
-            CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+            CookieManager.getInstance().setAcceptThirdPartyCookies(this, false)
             defaultWebViewUserAgent = settings.userAgentString
 
             webChromeClient = object : WebChromeClient() {
                 override fun onPermissionRequest(request: PermissionRequest) {
                     runOnUiThread {
+                        if (!isTrustedOrigin(request.origin?.toString())) {
+                            request.deny()
+                            return@runOnUiThread
+                        }
+
                         val requiredPermissions =
                             mapWebResourcesToAndroidPermissions(request.resources)
 
@@ -292,6 +321,25 @@ class MainActivity : AppCompatActivity() {
             }
 
             webViewClient = object : WebViewClient() {
+                override fun shouldOverrideUrlLoading(
+                    view: WebView,
+                    request: WebResourceRequest
+                ): Boolean {
+                    if (!request.isForMainFrame) {
+                        return false
+                    }
+                    return if (isAllowedTopLevelUrl(request.url?.toString())) {
+                        false
+                    } else {
+                        Toast.makeText(
+                            this@MainActivity,
+                            "Blocked navigation to unsupported URL",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        true
+                    }
+                }
+
                 override fun onReceivedError(
                     view: WebView,
                     request: WebResourceRequest,
@@ -373,6 +421,40 @@ class MainActivity : AppCompatActivity() {
         return permissions.toTypedArray()
     }
 
+    private fun isAllowedTopLevelUrl(url: String?): Boolean {
+        val scheme = parseUri(url)?.scheme?.lowercase() ?: return false
+        return scheme == "http" || scheme == "https"
+    }
+
+    private fun isAllowedSubresourceUrl(url: String?): Boolean {
+        val scheme = parseUri(url)?.scheme?.lowercase() ?: return false
+        return scheme == "http" ||
+            scheme == "https" ||
+            scheme == "about" ||
+            scheme == "data" ||
+            scheme == "blob"
+    }
+
+    private fun isTrustedOrigin(candidateUrl: String?): Boolean {
+        val candidateHost = parseUri(candidateUrl)?.host?.lowercase() ?: return false
+        val configuredHost = configuredHomeAssistantHost() ?: return false
+        return candidateHost == configuredHost
+    }
+
+    private fun configuredHomeAssistantHost(): String? {
+        val baseUrl = KioskPreferences.normalizeBaseUrl(
+            (activeSettings ?: prefs.load()).homeAssistantUrl
+        )
+        return parseUri(baseUrl)?.host?.lowercase()
+    }
+
+    private fun parseUri(url: String?): Uri? {
+        if (url.isNullOrBlank()) {
+            return null
+        }
+        return runCatching { Uri.parse(url) }.getOrNull()
+    }
+
     private fun createOrRecreateGeckoSession() {
         closeGeckoSession()
         session = GeckoSession().also { geckoSession ->
@@ -400,19 +482,46 @@ class MainActivity : AppCompatActivity() {
         return GeckoRuntime.create(
             this,
             GeckoRuntimeSettings.Builder()
-                .consoleOutput(true)
+                .consoleOutput(false)
                 .build()
         ).also { runtime = it }
     }
 
     private fun createGeckoNavigationDelegate(): GeckoSession.NavigationDelegate {
         return object : GeckoSession.NavigationDelegate {
+            override fun onLoadRequest(
+                session: GeckoSession,
+                request: GeckoSession.NavigationDelegate.LoadRequest
+            ): GeckoResult<AllowOrDeny>? {
+                return if (isAllowedTopLevelUrl(request.uri)) {
+                    GeckoResult.fromValue(AllowOrDeny.ALLOW)
+                } else {
+                    Toast.makeText(
+                        this@MainActivity,
+                        "Blocked navigation to unsupported URL",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    GeckoResult.fromValue(AllowOrDeny.DENY)
+                }
+            }
+
+            override fun onSubframeLoadRequest(
+                session: GeckoSession,
+                request: GeckoSession.NavigationDelegate.LoadRequest
+            ): GeckoResult<AllowOrDeny>? {
+                return if (isAllowedSubresourceUrl(request.uri)) {
+                    GeckoResult.fromValue(AllowOrDeny.ALLOW)
+                } else {
+                    GeckoResult.fromValue(AllowOrDeny.DENY)
+                }
+            }
+
             override fun onLoadError(
                 session: GeckoSession,
                 uri: String?,
                 error: WebRequestError
             ): GeckoResult<String>? {
-                scheduleRetry("Gecko load error for ${uri ?: "unknown URI"}")
+                scheduleRetry("Gecko load error")
                 return null
             }
         }
@@ -465,7 +574,25 @@ class MainActivity : AppCompatActivity() {
                 session: GeckoSession,
                 perm: GeckoSession.PermissionDelegate.ContentPermission
             ): GeckoResult<Int> {
-                return GeckoResult.fromValue(GeckoSession.PermissionDelegate.ContentPermission.VALUE_ALLOW)
+                if (!isTrustedOrigin(perm.uri)) {
+                    return GeckoResult.fromValue(
+                        GeckoSession.PermissionDelegate.ContentPermission.VALUE_DENY
+                    )
+                }
+
+                val decision = when (perm.permission) {
+                    GeckoSession.PermissionDelegate.PERMISSION_AUTOPLAY_INAUDIBLE,
+                    GeckoSession.PermissionDelegate.PERMISSION_AUTOPLAY_AUDIBLE,
+                    GeckoSession.PermissionDelegate.PERMISSION_PERSISTENT_STORAGE,
+                    GeckoSession.PermissionDelegate.PERMISSION_STORAGE_ACCESS,
+                    GeckoSession.PermissionDelegate.PERMISSION_LOCAL_DEVICE_ACCESS,
+                    GeckoSession.PermissionDelegate.PERMISSION_LOCAL_NETWORK_ACCESS,
+                    GeckoSession.PermissionDelegate.PERMISSION_MEDIA_KEY_SYSTEM_ACCESS ->
+                        GeckoSession.PermissionDelegate.ContentPermission.VALUE_ALLOW
+
+                    else -> GeckoSession.PermissionDelegate.ContentPermission.VALUE_DENY
+                }
+                return GeckoResult.fromValue(decision)
             }
 
             override fun onMediaPermissionRequest(
@@ -475,7 +602,30 @@ class MainActivity : AppCompatActivity() {
                 audio: Array<GeckoSession.PermissionDelegate.MediaSource>?,
                 callback: GeckoSession.PermissionDelegate.MediaCallback
             ) {
-                callback.grant(video?.firstOrNull(), audio?.firstOrNull())
+                if (!isTrustedOrigin(uri)) {
+                    callback.reject()
+                    return
+                }
+
+                val requiredPermissions = linkedSetOf<String>()
+                if (!video.isNullOrEmpty()) {
+                    requiredPermissions += Manifest.permission.CAMERA
+                }
+                if (!audio.isNullOrEmpty()) {
+                    requiredPermissions += Manifest.permission.RECORD_AUDIO
+                }
+
+                val permissionArray = requiredPermissions.toTypedArray()
+                if (permissionArray.isEmpty() || hasAllPermissions(permissionArray)) {
+                    callback.grant(video?.firstOrNull(), audio?.firstOrNull())
+                    return
+                }
+
+                pendingMediaPermissionCallback?.reject()
+                pendingMediaPermissionCallback = callback
+                pendingMediaVideoSources = video
+                pendingMediaAudioSources = audio
+                permissionLauncher.launch(permissionArray)
             }
         }
     }
@@ -502,6 +652,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun applyWindowSettings() {
         val settings = prefs.load()
+        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         if (settings.keepScreenOn) {
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         } else {
