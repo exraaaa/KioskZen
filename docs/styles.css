@@ -23,17 +23,47 @@ body {
     radial-gradient(circle at 12% 15%, rgb(15 191 159 / 17%) 0%, transparent 33%),
     radial-gradient(circle at 84% 11%, rgb(47 127 255 / 20%) 0%, transparent 34%),
     var(--bg);
+  background-size: 140% 140%, 140% 140%, auto;
+  animation: backdropShift 22s ease-in-out infinite alternate;
+  overflow-x: hidden;
 }
 
 .background-grid {
   position: fixed;
   inset: 0;
   pointer-events: none;
+  overflow: hidden;
   background-image:
     linear-gradient(rgb(255 255 255 / 4%) 1px, transparent 1px),
     linear-gradient(90deg, rgb(255 255 255 / 4%) 1px, transparent 1px);
   background-size: 34px 34px;
   mask-image: radial-gradient(circle at center, black 50%, transparent 100%);
+  animation: gridDrift 18s linear infinite;
+}
+
+.background-grid::before,
+.background-grid::after {
+  content: "";
+  position: absolute;
+  width: 46vmax;
+  height: 46vmax;
+  border-radius: 50%;
+  filter: blur(70px);
+  opacity: 0.22;
+}
+
+.background-grid::before {
+  top: -12vmax;
+  left: -10vmax;
+  background: rgb(15 191 159 / 45%);
+  animation: orbFloatA 24s ease-in-out infinite;
+}
+
+.background-grid::after {
+  right: -12vmax;
+  bottom: -16vmax;
+  background: rgb(47 127 255 / 40%);
+  animation: orbFloatB 28s ease-in-out infinite;
 }
 
 .wrap {
@@ -48,10 +78,31 @@ body {
   border-radius: 20px;
   padding: 24px;
   box-shadow: var(--shadow);
+  animation: riseIn 460ms ease both;
 }
 
 .section {
   margin-top: 16px;
+}
+
+.section:nth-of-type(2) {
+  animation-delay: 60ms;
+}
+
+.section:nth-of-type(3) {
+  animation-delay: 120ms;
+}
+
+.section:nth-of-type(4) {
+  animation-delay: 170ms;
+}
+
+.section:nth-of-type(5) {
+  animation-delay: 220ms;
+}
+
+.section:nth-of-type(6) {
+  animation-delay: 270ms;
 }
 
 .eyebrow {
@@ -226,7 +277,8 @@ code {
   border: 1px solid var(--line);
   background: var(--panel-2);
   border-radius: 12px;
-  padding: 12px 14px;
+  padding: 0 14px;
+  transition: border-color 220ms ease, background-color 220ms ease, transform 220ms ease;
 }
 
 .faq details + details {
@@ -234,15 +286,71 @@ code {
 }
 
 .faq summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  list-style: none;
+  padding: 13px 0;
   cursor: pointer;
   font-weight: 700;
+  user-select: none;
+}
+
+.faq summary::-webkit-details-marker {
+  display: none;
+}
+
+.faq summary::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid #8caad2;
+  border-bottom: 2px solid #8caad2;
+  transform: rotate(45deg);
+  transition: transform 240ms ease, border-color 240ms ease;
+  margin-right: 2px;
+  flex-shrink: 0;
 }
 
 .faq p {
-  margin: 10px 0 0;
+  margin: 0;
   color: var(--muted);
   line-height: 1.6;
   font-size: 0.94rem;
+}
+
+.faq-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows 300ms ease, opacity 240ms ease, padding-bottom 300ms ease;
+  padding-bottom: 0;
+}
+
+.faq-body > p {
+  overflow: hidden;
+}
+
+.faq details[open] {
+  border-color: #326292;
+  background: #102137;
+  transform: translateY(-1px);
+}
+
+.faq details[open] summary::after {
+  transform: rotate(225deg);
+  border-color: #8fd4ff;
+}
+
+.faq details[open] .faq-body {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  padding-bottom: 14px;
+}
+
+.faq details[open] .faq-body > p {
+  margin-top: 2px;
 }
 
 .foot {
@@ -289,5 +397,67 @@ code {
   .btn {
     width: 100%;
     text-align: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+@keyframes backdropShift {
+  0% {
+    background-position: 0% 0%, 100% 0%, 0 0;
+  }
+  100% {
+    background-position: 14% 8%, 86% 18%, 0 0;
+  }
+}
+
+@keyframes gridDrift {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-14px, -10px, 0);
+  }
+}
+
+@keyframes orbFloatA {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(8vmax, 6vmax, 0) scale(1.1);
+  }
+  100% {
+    transform: translate3d(4vmax, 10vmax, 0) scale(0.95);
+  }
+}
+
+@keyframes orbFloatB {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(-8vmax, -5vmax, 0) scale(1.06);
+  }
+  100% {
+    transform: translate3d(-5vmax, -10vmax, 0) scale(0.92);
+  }
+}
+
+@keyframes riseIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }

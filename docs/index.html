@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css?v=20260502b" />
 </head>
 <body>
   <div class="background-grid" aria-hidden="true"></div>
@@ -22,15 +22,15 @@
       </p>
 
       <div class="actions">
-        <a class="btn primary" href="https://github.com/alexrafaelhaidu/KioskZen/releases/latest/download/KioskZen-v1.1.0.apk">Download APK</a>
-        <a class="btn secondary" href="https://github.com/alexrafaelhaidu/KioskZen/releases/latest">Release Notes</a>
+        <a id="download-apk" class="btn primary" href="https://github.com/alexrafaelhaidu/KioskZen/releases/latest/download/KioskZen-v1.1.0.apk">Download APK</a>
+        <a id="release-notes" class="btn secondary" href="https://github.com/alexrafaelhaidu/KioskZen/releases/latest">Release Notes</a>
         <a class="btn ghost" href="https://github.com/alexrafaelhaidu/KioskZen">GitHub</a>
       </div>
 
       <ul class="meta">
-        <li><span>Current Release</span><strong>v1.1.0</strong></li>
+        <li><span>Current Release</span><strong id="release-version">v1.1.0</strong></li>
         <li><span>Android</span><strong>8.0+ (API 26+)</strong></li>
-        <li><span>Default URL</span><strong>homeassistant.local</strong></li>
+        <li><span>Published</span><strong id="release-published">Fetching...</strong></li>
       </ul>
     </header>
 
@@ -99,15 +99,21 @@
       <div class="faq">
         <details>
           <summary>Why GeckoView support?</summary>
-          <p>Many camera streams and media pipelines that fail in some WebView-based kiosks work better under GeckoView.</p>
+          <div class="faq-body">
+            <p>Many camera streams and media pipelines that fail in some WebView-based kiosks work better under GeckoView.</p>
+          </div>
         </details>
         <details>
           <summary>Can I auto-start after reboot?</summary>
-          <p>Yes, there is an auto-start-on-boot toggle in settings.</p>
+          <div class="faq-body">
+            <p>Yes, there is an auto-start-on-boot toggle in settings.</p>
+          </div>
         </details>
         <details>
           <summary>Can I run this offline/local-only?</summary>
-          <p>Yes. It works with local Home Assistant instances and LAN addresses/hostnames.</p>
+          <div class="faq-body">
+            <p>Yes. It works with local Home Assistant instances and LAN addresses/hostnames.</p>
+          </div>
         </details>
       </div>
     </section>
@@ -117,5 +123,44 @@
       <p><a href="https://github.com/alexrafaelhaidu/KioskZen/releases/latest">Get latest release</a></p>
     </section>
   </main>
+  <script>
+    (async () => {
+      const repo = "alexrafaelhaidu/KioskZen";
+      const api = `https://api.github.com/repos/${repo}/releases/latest`;
+
+      const versionEl = document.getElementById("release-version");
+      const publishedEl = document.getElementById("release-published");
+      const apkBtn = document.getElementById("download-apk");
+      const releaseBtn = document.getElementById("release-notes");
+
+      try {
+        const response = await fetch(api, {
+          headers: { Accept: "application/vnd.github+json" }
+        });
+        if (!response.ok) {
+          throw new Error(`GitHub API ${response.status}`);
+        }
+
+        const release = await response.json();
+        const tag = release.tag_name || release.name || "latest";
+
+        const apkAsset = (release.assets || []).find((asset) =>
+          /\.apk$/i.test(asset.name || "")
+        );
+
+        versionEl.textContent = tag;
+        publishedEl.textContent = release.published_at
+          ? new Date(release.published_at).toLocaleDateString()
+          : "Unknown";
+
+        releaseBtn.href = release.html_url || releaseBtn.href;
+        if (apkAsset?.browser_download_url) {
+          apkBtn.href = apkAsset.browser_download_url;
+        }
+      } catch (_) {
+        publishedEl.textContent = "Unavailable";
+      }
+    })();
+  </script>
 </body>
 </html>
