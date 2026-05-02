@@ -48,8 +48,8 @@ Default dashboard URL:
 
 ```powershell
 .\gradlew.bat assembleDebug
-Copy-Item .\app\build\outputs\apk\debug\app-debug.apk .\app\build\outputs\apk\debug\KioskZen-v1.0.0.apk -Force
-$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe install -r .\app\build\outputs\apk\debug\KioskZen-v1.0.0.apk
+Copy-Item .\app\build\outputs\apk\debug\app-debug.apk .\app\build\outputs\apk\debug\KioskZen-v1.1.0.apk -Force
+$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe install -r .\app\build\outputs\apk\debug\KioskZen-v1.1.0.apk
 ```
 
 ## Notes
