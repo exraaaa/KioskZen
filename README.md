@@ -55,3 +55,7 @@ $env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe install -r .\app\build\outp
 
 - If you use Chromium mode, it stays inside the app (so kiosk fullscreen and admin gesture still work).
 - For camera/mic streams, confirm Android runtime permissions when prompted.
+
+---
+
+Small disclosure: parts of this codebase were built with AI-assisted tooling, then reviewed and adjusted manually.
