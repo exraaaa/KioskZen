@@ -287,6 +287,8 @@ class SettingsActivity : AppCompatActivity() {
         binding.switchAmbientMode.isChecked = settings.ambientModeEnabled
         binding.inputAmbientDimAfter.setText(settings.ambientDimAfterSeconds.toString())
         binding.inputAmbientBrightness.setText(settings.ambientBrightnessPercent.toString())
+        binding.switchPresenceWake.isChecked = settings.presenceWakeEnabled
+        binding.inputPresenceWakeCooldown.setText(settings.presenceWakeCooldownSeconds.toString())
 
         binding.currentUrlValue.text = prefs.buildDashboardUrl(settings)
         updateAdminPasswordStatus()
@@ -321,6 +323,8 @@ class SettingsActivity : AppCompatActivity() {
             ?: current.ambientDimAfterSeconds
         val ambientBrightness = binding.inputAmbientBrightness.text?.toString()?.trim()?.toIntOrNull()
             ?: current.ambientBrightnessPercent
+        val presenceWakeCooldown = binding.inputPresenceWakeCooldown.text?.toString()?.trim()?.toIntOrNull()
+            ?: current.presenceWakeCooldownSeconds
 
         val selectedEngine = when (binding.radioEngineGroup.checkedRadioButtonId) {
             R.id.radio_engine_webview -> BrowserEngine.WEBVIEW
@@ -370,7 +374,9 @@ class SettingsActivity : AppCompatActivity() {
             maintenanceMinute = maintenanceMinute,
             ambientModeEnabled = binding.switchAmbientMode.isChecked,
             ambientDimAfterSeconds = ambientDimAfter,
-            ambientBrightnessPercent = ambientBrightness
+            ambientBrightnessPercent = ambientBrightness,
+            presenceWakeEnabled = binding.switchPresenceWake.isChecked,
+            presenceWakeCooldownSeconds = presenceWakeCooldown
         )
     }
 

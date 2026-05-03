@@ -83,6 +83,9 @@
     <string name="ambient_mode_enabled">Enable ambient dim mode</string>
     <string name="ambient_dim_after_seconds">Dim after idle (seconds)</string>
     <string name="ambient_brightness_percent">Dim brightness (%)</string>
+    <string name="presence_wake_enabled">Wake on face detection</string>
+    <string name="presence_wake_cooldown_seconds">Presence wake cooldown (seconds)</string>
+    <string name="presence_wake_notice">Uses the front camera while this app is open to wake from ambient dim when a face is detected.</string>
 
     <string name="updates_enabled">Enable update checks</string>
     <string name="github_repo_slug">GitHub repo (owner/repo)</string>

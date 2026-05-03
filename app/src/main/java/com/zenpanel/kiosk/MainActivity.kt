@@ -30,11 +30,19 @@ import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.ImageProxy
+import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.face.FaceDetection
+import com.google.mlkit.vision.face.FaceDetector
+import com.google.mlkit.vision.face.FaceDetectorOptions
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
@@ -57,6 +65,8 @@ import org.mozilla.geckoview.WebRequestError
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Calendar
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
@@ -80,6 +90,10 @@ class MainActivity : AppCompatActivity() {
     private var pendingWebPermissionRequest: PermissionRequest? = null
     private var watchdogJob: Job? = null
     private var maintenanceJob: Job? = null
+    private var pendingPresenceWakePermissionRequest = false
+    private var presenceWakeAnalysis: ImageAnalysis? = null
+    private var presenceWakeCameraProvider: ProcessCameraProvider? = null
+    private var presenceWakeExecutor: ExecutorService? = null
 
     private var tapCount = 0
     private var firstTapAt = 0L
@@ -88,6 +102,16 @@ class MainActivity : AppCompatActivity() {
     private var watchdogFailureCount = 0
     private var isAmbientDimmed = false
     private var updateCheckInProgress = false
+    private var isPresenceWakeFrameInFlight = false
+    private var lastPresenceWakeAtMillis = 0L
+    private var presenceWakeRequested = false
+
+    private val presenceFaceDetector: FaceDetector by lazy {
+        val options = FaceDetectorOptions.Builder()
+            .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
+            .build()
+        FaceDetection.getClient(options)
+    }
 
     private val permissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
@@ -116,6 +140,17 @@ class MainActivity : AppCompatActivity() {
             pendingMediaPermissionCallback = null
             pendingMediaVideoSources = null
             pendingMediaAudioSources = null
+
+            if (pendingPresenceWakePermissionRequest) {
+                pendingPresenceWakePermissionRequest = false
+                val cameraGranted = result[Manifest.permission.CAMERA] == true
+                if (cameraGranted) {
+                    applyPresenceWakePolicy()
+                } else {
+                    stopPresenceWakePipeline()
+                    prefs.recordLastLoadStatus("Presence wake unavailable: camera permission denied")
+                }
+            }
         }
 
     private val settingsLauncher =
@@ -190,6 +225,13 @@ class MainActivity : AppCompatActivity() {
         prefs.applyThemeMode()
         applyWindowSettings()
         resetAmbientTimer()
+        applyPresenceWakePolicy()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        presenceWakeRequested = false
+        stopPresenceWakePipeline()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -207,10 +249,15 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         unregisterNetworkMonitoring()
+        presenceWakeRequested = false
+        stopPresenceWakePipeline()
         mainHandler.removeCallbacksAndMessages(null)
         scope.cancel()
         closeGeckoSession()
         destroyWebView()
+        runCatching { presenceFaceDetector.close() }
+        presenceWakeExecutor?.shutdown()
+        presenceWakeExecutor = null
     }
 
     private fun setupAdminGesture() {
@@ -818,6 +865,7 @@ class MainActivity : AppCompatActivity() {
         scheduleMaintenanceWindow()
         scheduleWatchdog()
         resetAmbientTimer()
+        applyPresenceWakePolicy()
     }
 
     private fun scheduleMaintenanceWindow() {
@@ -960,6 +1008,147 @@ class MainActivity : AppCompatActivity() {
             isAmbientDimmed = true
         }
         mainHandler.postDelayed(ambientDimRunnable!!, settings.ambientDimAfterSeconds * 1_000L)
+    }
+
+    private fun applyPresenceWakePolicy() {
+        val settings = prefs.load()
+        val shouldRunPresenceWake = settings.ambientModeEnabled && settings.presenceWakeEnabled
+        if (!shouldRunPresenceWake) {
+            presenceWakeRequested = false
+            stopPresenceWakePipeline()
+            return
+        }
+        presenceWakeRequested = true
+
+        if (!hasAllPermissions(arrayOf(Manifest.permission.CAMERA))) {
+            stopPresenceWakePipeline()
+            if (!pendingPresenceWakePermissionRequest) {
+                pendingPresenceWakePermissionRequest = true
+                permissionLauncher.launch(arrayOf(Manifest.permission.CAMERA))
+            }
+            return
+        }
+
+        startPresenceWakePipeline()
+    }
+
+    private fun ensurePresenceWakeExecutor(): ExecutorService {
+        val existing = presenceWakeExecutor
+        if (existing != null && !existing.isShutdown) {
+            return existing
+        }
+        return Executors.newSingleThreadExecutor().also { presenceWakeExecutor = it }
+    }
+
+    private fun startPresenceWakePipeline() {
+        if (presenceWakeAnalysis != null) {
+            return
+        }
+
+        val providerFuture = ProcessCameraProvider.getInstance(this)
+        providerFuture.addListener({
+            if (!presenceWakeRequested) {
+                return@addListener
+            }
+            val provider = runCatching { providerFuture.get() }.getOrNull() ?: return@addListener
+            if (!prefs.load().presenceWakeEnabled || !prefs.load().ambientModeEnabled) {
+                return@addListener
+            }
+
+            val selector = selectPresenceCamera(provider) ?: run {
+                prefs.recordLastLoadStatus("Presence wake unavailable: no camera found")
+                return@addListener
+            }
+
+            val analysis = ImageAnalysis.Builder()
+                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                .build()
+
+            analysis.setAnalyzer(ensurePresenceWakeExecutor()) { imageProxy ->
+                analyzePresenceWakeFrame(imageProxy)
+            }
+
+            runCatching {
+                provider.bindToLifecycle(this, selector, analysis)
+            }.onSuccess {
+                presenceWakeCameraProvider = provider
+                presenceWakeAnalysis = analysis
+            }.onFailure { error ->
+                analysis.clearAnalyzer()
+                prefs.recordLastLoadStatus("Presence wake start failed: ${error.message}")
+            }
+        }, ContextCompat.getMainExecutor(this))
+    }
+
+    private fun stopPresenceWakePipeline() {
+        presenceWakeAnalysis?.clearAnalyzer()
+        presenceWakeAnalysis?.let { analysis ->
+            runCatching { presenceWakeCameraProvider?.unbind(analysis) }
+        }
+        presenceWakeAnalysis = null
+        isPresenceWakeFrameInFlight = false
+    }
+
+    private fun selectPresenceCamera(provider: ProcessCameraProvider): CameraSelector? {
+        return when {
+            runCatching { provider.hasCamera(CameraSelector.DEFAULT_FRONT_CAMERA) }.getOrDefault(false) ->
+                CameraSelector.DEFAULT_FRONT_CAMERA
+            runCatching { provider.hasCamera(CameraSelector.DEFAULT_BACK_CAMERA) }.getOrDefault(false) ->
+                CameraSelector.DEFAULT_BACK_CAMERA
+            else -> null
+        }
+    }
+
+    private fun analyzePresenceWakeFrame(imageProxy: ImageProxy) {
+        val settings = prefs.load()
+        if (!settings.presenceWakeEnabled || !settings.ambientModeEnabled || !isAmbientDimmed) {
+            imageProxy.close()
+            return
+        }
+
+        if (isPresenceWakeFrameInFlight) {
+            imageProxy.close()
+            return
+        }
+
+        val mediaImage = imageProxy.image
+        if (mediaImage == null) {
+            imageProxy.close()
+            return
+        }
+
+        isPresenceWakeFrameInFlight = true
+        val inputImage = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
+        presenceFaceDetector.process(inputImage)
+            .addOnSuccessListener { faces ->
+                if (faces.isNotEmpty()) {
+                    maybeWakeFromPresence(settings)
+                }
+            }
+            .addOnCompleteListener {
+                isPresenceWakeFrameInFlight = false
+                imageProxy.close()
+            }
+    }
+
+    private fun maybeWakeFromPresence(settings: KioskSettings) {
+        if (!isAmbientDimmed) {
+            return
+        }
+
+        val now = SystemClock.elapsedRealtime()
+        val cooldownMs = settings.presenceWakeCooldownSeconds * 1_000L
+        if (now - lastPresenceWakeAtMillis < cooldownMs) {
+            return
+        }
+
+        lastPresenceWakeAtMillis = now
+        mainHandler.post {
+            if (!isAmbientDimmed) return@post
+            setWindowBrightness(WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE)
+            isAmbientDimmed = false
+            resetAmbientTimer()
+        }
     }
 
     private fun setWindowBrightness(value: Float) {

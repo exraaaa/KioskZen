@@ -72,7 +72,9 @@ data class KioskSettings(
     val maintenanceMinute: Int,
     val ambientModeEnabled: Boolean,
     val ambientDimAfterSeconds: Int,
-    val ambientBrightnessPercent: Int
+    val ambientBrightnessPercent: Int,
+    val presenceWakeEnabled: Boolean,
+    val presenceWakeCooldownSeconds: Int
 )
 
 data class DiagnosticsSnapshot(
@@ -194,6 +196,18 @@ class KioskPreferences(context: Context) {
                 prefs.getInt(KEY_AMBIENT_BRIGHTNESS_PERCENT, DEFAULT_AMBIENT_BRIGHTNESS_PERCENT),
                 MIN_AMBIENT_BRIGHTNESS_PERCENT,
                 MAX_AMBIENT_BRIGHTNESS_PERCENT
+            ),
+            presenceWakeEnabled = prefs.getBoolean(
+                KEY_PRESENCE_WAKE_ENABLED,
+                DEFAULT_PRESENCE_WAKE_ENABLED
+            ),
+            presenceWakeCooldownSeconds = clampInt(
+                prefs.getInt(
+                    KEY_PRESENCE_WAKE_COOLDOWN_SECONDS,
+                    DEFAULT_PRESENCE_WAKE_COOLDOWN_SECONDS
+                ),
+                MIN_PRESENCE_WAKE_COOLDOWN_SECONDS,
+                MAX_PRESENCE_WAKE_COOLDOWN_SECONDS
             )
         )
     }
@@ -282,6 +296,15 @@ class KioskPreferences(context: Context) {
                     MAX_AMBIENT_BRIGHTNESS_PERCENT
                 )
             )
+            .putBoolean(KEY_PRESENCE_WAKE_ENABLED, settings.presenceWakeEnabled)
+            .putInt(
+                KEY_PRESENCE_WAKE_COOLDOWN_SECONDS,
+                clampInt(
+                    settings.presenceWakeCooldownSeconds,
+                    MIN_PRESENCE_WAKE_COOLDOWN_SECONDS,
+                    MAX_PRESENCE_WAKE_COOLDOWN_SECONDS
+                )
+            )
             .apply()
     }
 
@@ -323,7 +346,9 @@ class KioskPreferences(context: Context) {
             maintenanceMinute = DEFAULT_MAINTENANCE_MINUTE,
             ambientModeEnabled = DEFAULT_AMBIENT_MODE_ENABLED,
             ambientDimAfterSeconds = DEFAULT_AMBIENT_DIM_AFTER_SECONDS,
-            ambientBrightnessPercent = DEFAULT_AMBIENT_BRIGHTNESS_PERCENT
+            ambientBrightnessPercent = DEFAULT_AMBIENT_BRIGHTNESS_PERCENT,
+            presenceWakeEnabled = DEFAULT_PRESENCE_WAKE_ENABLED,
+            presenceWakeCooldownSeconds = DEFAULT_PRESENCE_WAKE_COOLDOWN_SECONDS
         )
         save(defaults)
         return defaults
@@ -476,6 +501,8 @@ class KioskPreferences(context: Context) {
             put("ambientModeEnabled", settings.ambientModeEnabled)
             put("ambientDimAfterSeconds", settings.ambientDimAfterSeconds)
             put("ambientBrightnessPercent", settings.ambientBrightnessPercent)
+            put("presenceWakeEnabled", settings.presenceWakeEnabled)
+            put("presenceWakeCooldownSeconds", settings.presenceWakeCooldownSeconds)
         }
         return json.toString(2)
     }
@@ -538,6 +565,11 @@ class KioskPreferences(context: Context) {
             ambientBrightnessPercent = json.optInt(
                 "ambientBrightnessPercent",
                 current.ambientBrightnessPercent
+            ),
+            presenceWakeEnabled = json.optBoolean("presenceWakeEnabled", current.presenceWakeEnabled),
+            presenceWakeCooldownSeconds = json.optInt(
+                "presenceWakeCooldownSeconds",
+                current.presenceWakeCooldownSeconds
             )
         )
         save(merged)
@@ -615,6 +647,8 @@ class KioskPreferences(context: Context) {
         private const val KEY_AMBIENT_MODE_ENABLED = "ambient_mode_enabled"
         private const val KEY_AMBIENT_DIM_AFTER_SECONDS = "ambient_dim_after_seconds"
         private const val KEY_AMBIENT_BRIGHTNESS_PERCENT = "ambient_brightness_percent"
+        private const val KEY_PRESENCE_WAKE_ENABLED = "presence_wake_enabled"
+        private const val KEY_PRESENCE_WAKE_COOLDOWN_SECONDS = "presence_wake_cooldown_seconds"
 
         private const val KEY_DIAG_LAST_ENGINE = "diag_last_engine"
         private const val KEY_DIAG_LAST_URL = "diag_last_url"
@@ -669,6 +703,8 @@ class KioskPreferences(context: Context) {
         const val DEFAULT_AMBIENT_MODE_ENABLED = false
         const val DEFAULT_AMBIENT_DIM_AFTER_SECONDS = 120
         const val DEFAULT_AMBIENT_BRIGHTNESS_PERCENT = 25
+        const val DEFAULT_PRESENCE_WAKE_ENABLED = false
+        const val DEFAULT_PRESENCE_WAKE_COOLDOWN_SECONDS = 8
 
         const val MIN_RELOAD_INTERVAL_SECONDS = 5
         const val MAX_RELOAD_INTERVAL_SECONDS = 600
@@ -686,6 +722,8 @@ class KioskPreferences(context: Context) {
         const val MAX_AMBIENT_DIM_AFTER_SECONDS = 3600
         const val MIN_AMBIENT_BRIGHTNESS_PERCENT = 5
         const val MAX_AMBIENT_BRIGHTNESS_PERCENT = 100
+        const val MIN_PRESENCE_WAKE_COOLDOWN_SECONDS = 2
+        const val MAX_PRESENCE_WAKE_COOLDOWN_SECONDS = 60
 
         fun normalizeBaseUrl(value: String): String {
             val trimmed = value.trim().ifBlank { DEFAULT_HOME_ASSISTANT_URL }
