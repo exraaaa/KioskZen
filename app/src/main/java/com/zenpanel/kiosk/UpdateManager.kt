@@ -28,6 +28,7 @@ data class ReleaseInfo(
 
 object UpdateManager {
     private const val GITHUB_API_BASE = "https://api.github.com/repos/"
+    private val SEMVER_FINDER = Regex("""(?i)\b[vV]?(\d+(?:\.\d+){0,3})(?:-([0-9A-Za-z.-]+))?""")
 
     fun fetchLatestRelease(repoSlug: String): Result<ReleaseInfo> {
         return runCatching {
@@ -66,16 +67,19 @@ object UpdateManager {
     }
 
     fun isNewerRelease(currentVersion: String, releaseTag: String): Boolean {
-        val currentParts = versionParts(currentVersion)
-        val latestParts = versionParts(releaseTag)
-        val max = maxOf(currentParts.size, latestParts.size)
-        for (index in 0 until max) {
-            val current = currentParts.getOrElse(index) { 0 }
-            val latest = latestParts.getOrElse(index) { 0 }
-            if (latest > current) return true
-            if (latest < current) return false
+        val current = parseVersion(currentVersion)
+        val latest = parseVersion(releaseTag)
+
+        if (current == null || latest == null) {
+            return false
         }
-        return false
+        return compareVersions(current, latest) < 0
+    }
+
+    fun normalizedVersionLabel(raw: String): String {
+        val parsed = parseVersion(raw) ?: return raw.trim()
+        val base = parsed.core.joinToString(".")
+        return if (parsed.preRelease.isEmpty()) base else "$base-${parsed.preRelease.joinToString(".")}"
     }
 
     fun enqueueDownload(
@@ -138,8 +142,56 @@ object UpdateManager {
         return null
     }
 
-    private fun versionParts(raw: String): List<Int> {
-        val normalized = raw.trim().removePrefix("v").substringBefore('-')
-        return normalized.split('.').mapNotNull { it.toIntOrNull() }
+    private data class ParsedVersion(
+        val core: List<Int>,
+        val preRelease: List<String>
+    )
+
+    private fun parseVersion(raw: String): ParsedVersion? {
+        val match = SEMVER_FINDER.find(raw.trim()) ?: return null
+        val core = match.groupValues[1]
+            .split('.')
+            .mapNotNull { it.toIntOrNull() }
+        if (core.isEmpty()) return null
+
+        val preRelease = match.groupValues.getOrNull(2)
+            .orEmpty()
+            .split('.')
+            .filter { it.isNotBlank() }
+
+        return ParsedVersion(core = core, preRelease = preRelease)
+    }
+
+    private fun compareVersions(a: ParsedVersion, b: ParsedVersion): Int {
+        val max = maxOf(a.core.size, b.core.size)
+        for (index in 0 until max) {
+            val left = a.core.getOrElse(index) { 0 }
+            val right = b.core.getOrElse(index) { 0 }
+            if (left != right) return left.compareTo(right)
+        }
+
+        val aPre = a.preRelease
+        val bPre = b.preRelease
+        if (aPre.isEmpty() && bPre.isEmpty()) return 0
+        if (aPre.isEmpty()) return 1
+        if (bPre.isEmpty()) return -1
+
+        val preMax = maxOf(aPre.size, bPre.size)
+        for (index in 0 until preMax) {
+            val left = aPre.getOrNull(index) ?: return -1
+            val right = bPre.getOrNull(index) ?: return 1
+            val leftNum = left.toIntOrNull()
+            val rightNum = right.toIntOrNull()
+
+            val result = when {
+                leftNum != null && rightNum != null -> leftNum.compareTo(rightNum)
+                leftNum != null -> -1
+                rightNum != null -> 1
+                else -> left.compareTo(right)
+            }
+
+            if (result != 0) return result
+        }
+        return 0
     }
 }

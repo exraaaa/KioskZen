@@ -1050,14 +1050,20 @@ class MainActivity : AppCompatActivity() {
             updateCheckInProgress = false
 
             result.onSuccess { release ->
+                val currentLabel = UpdateManager.normalizedVersionLabel(currentVersionName())
+                val latestLabel = UpdateManager.normalizedVersionLabel(release.tagName)
                 val hasUpdate = UpdateManager.isNewerRelease(currentVersionName(), release.tagName)
                 prefs.recordUpdateState(
-                    if (hasUpdate) "update ${release.tagName} available" else "up-to-date (${release.tagName})"
+                    if (hasUpdate) {
+                        "update $latestLabel available (installed $currentLabel)"
+                    } else {
+                        "installed $currentLabel is up-to-date (latest $latestLabel)"
+                    }
                 )
                 if (hasUpdate) {
                     Toast.makeText(
                         this@MainActivity,
-                        getString(R.string.update_available_toast, release.tagName),
+                        getString(R.string.update_available_toast, latestLabel),
                         Toast.LENGTH_LONG
                     ).show()
                 }

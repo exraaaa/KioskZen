@@ -122,7 +122,9 @@ class KioskPreferences(context: Context) {
                 MAX_WATCHDOG_PING_INTERVAL_SECONDS
             ),
             updatesEnabled = prefs.getBoolean(KEY_UPDATES_ENABLED, DEFAULT_UPDATES_ENABLED),
-            updatesRepo = prefs.getString(KEY_UPDATES_REPO, DEFAULT_UPDATES_REPO) ?: DEFAULT_UPDATES_REPO,
+            updatesRepo = migrateRepoSlug(
+                prefs.getString(KEY_UPDATES_REPO, DEFAULT_UPDATES_REPO) ?: DEFAULT_UPDATES_REPO
+            ),
             updateCheckIntervalHours = clampInt(
                 prefs.getInt(KEY_UPDATE_CHECK_INTERVAL_HOURS, DEFAULT_UPDATE_CHECK_INTERVAL_HOURS),
                 MIN_UPDATE_CHECK_INTERVAL_HOURS,
@@ -227,7 +229,7 @@ class KioskPreferences(context: Context) {
                 )
             )
             .putBoolean(KEY_UPDATES_ENABLED, settings.updatesEnabled)
-            .putString(KEY_UPDATES_REPO, settings.updatesRepo.trim())
+            .putString(KEY_UPDATES_REPO, migrateRepoSlug(settings.updatesRepo))
             .putInt(
                 KEY_UPDATE_CHECK_INTERVAL_HOURS,
                 clampInt(
@@ -644,7 +646,8 @@ class KioskPreferences(context: Context) {
         const val DEFAULT_WATCHDOG_PING_PATH = "api/"
         const val DEFAULT_WATCHDOG_PING_INTERVAL_SECONDS = 45
         const val DEFAULT_UPDATES_ENABLED = false
-        const val DEFAULT_UPDATES_REPO = "alexrafaelhaidu/KioskZen"
+        const val DEFAULT_UPDATES_REPO = "exraaaa/KioskZen"
+        private const val LEGACY_UPDATES_REPO = "alexrafaelhaidu/KioskZen"
         const val DEFAULT_UPDATE_CHECK_INTERVAL_HOURS = 12
         const val DEFAULT_ALLOW_MIXED_CONTENT = true
         const val DEFAULT_ALLOW_THIRD_PARTY_COOKIES = false
@@ -718,6 +721,15 @@ class KioskPreferences(context: Context) {
 
         fun isValidRepoSlug(value: String): Boolean {
             return Regex("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$").matches(value.trim())
+        }
+
+        private fun migrateRepoSlug(value: String): String {
+            val normalized = value.trim()
+            return if (normalized.equals(LEGACY_UPDATES_REPO, ignoreCase = true)) {
+                DEFAULT_UPDATES_REPO
+            } else {
+                normalized
+            }
         }
 
         fun clampInt(value: Int, minValue: Int, maxValue: Int): Int {

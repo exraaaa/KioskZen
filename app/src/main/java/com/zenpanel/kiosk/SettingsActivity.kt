@@ -269,7 +269,7 @@ class SettingsActivity : AppCompatActivity() {
         binding.switchUpdatesEnabled.isChecked = settings.updatesEnabled
         binding.inputUpdatesRepo.setText(settings.updatesRepo)
         binding.inputUpdateCheckInterval.setText(settings.updateCheckIntervalHours.toString())
-        binding.updateStatusValue.text = prefs.diagnosticsSnapshot().lastUpdateState
+        binding.updateStatusValue.text = composeUpdateStatusText()
 
         binding.switchAllowMixedContent.isChecked = settings.allowMixedContent
         binding.switchAllowThirdPartyCookies.isChecked = settings.allowThirdPartyCookies
@@ -493,10 +493,12 @@ class SettingsActivity : AppCompatActivity() {
             binding.btnCheckUpdates.isEnabled = true
             result.onSuccess { release ->
                 val currentVersion = currentVersionName()
+                val currentLabel = UpdateManager.normalizedVersionLabel(currentVersion)
+                val latestLabel = UpdateManager.normalizedVersionLabel(release.tagName)
                 val hasUpdate = UpdateManager.isNewerRelease(currentVersion, release.tagName)
                 if (!hasUpdate) {
-                    val message = getString(R.string.up_to_date_version, currentVersion)
-                    binding.updateStatusValue.text = message
+                    val message = getString(R.string.up_to_date_version_detailed, currentLabel, latestLabel)
+                    binding.updateStatusValue.text = composeUpdateStatusText(message)
                     prefs.recordUpdateState(message)
                     Toast.makeText(this@SettingsActivity, message, Toast.LENGTH_SHORT).show()
                     return@onSuccess
@@ -504,23 +506,32 @@ class SettingsActivity : AppCompatActivity() {
 
                 val asset = release.apkAsset
                 if (asset == null) {
-                    val message = getString(R.string.update_found_no_apk, release.tagName)
-                    binding.updateStatusValue.text = message
+                    val message = getString(R.string.update_found_no_apk, latestLabel)
+                    binding.updateStatusValue.text = composeUpdateStatusText(message)
                     prefs.recordUpdateState(message)
                     return@onSuccess
                 }
 
-                val status = getString(R.string.update_available_status, release.tagName, asset.name)
-                binding.updateStatusValue.text = status
+                val status = getString(R.string.update_available_status, latestLabel, asset.name)
+                binding.updateStatusValue.text = composeUpdateStatusText(status)
                 prefs.recordUpdateState(status)
                 showDownloadUpdatePrompt(release)
             }.onFailure { error ->
                 val message = getString(R.string.update_check_failed, error.message ?: getString(R.string.unknown_error))
-                binding.updateStatusValue.text = message
+                binding.updateStatusValue.text = composeUpdateStatusText(message)
                 prefs.recordUpdateState(message)
                 Toast.makeText(this@SettingsActivity, message, Toast.LENGTH_SHORT).show()
             }
         }
+    }
+
+    private fun composeUpdateStatusText(lastStatus: String? = prefs.diagnosticsSnapshot().lastUpdateState): String {
+        val installed = UpdateManager.normalizedVersionLabel(currentVersionName())
+        val status = lastStatus?.trim().orEmpty()
+        if (status.isBlank() || status.equals("never checked", ignoreCase = true)) {
+            return getString(R.string.update_status_installed, installed)
+        }
+        return getString(R.string.update_status_with_last, installed, status)
     }
 
     private fun showDownloadUpdatePrompt(release: ReleaseInfo) {

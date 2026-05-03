@@ -91,6 +91,9 @@
     <string name="checking_updates">Checking GitHub releases...</string>
     <string name="invalid_repo_slug">Repo must be in owner/repo format.</string>
     <string name="up_to_date_version">You are up to date (%1$s)</string>
+    <string name="up_to_date_version_detailed">Installed %1$s is up to date (latest %2$s)</string>
+    <string name="update_status_installed">Installed version: %1$s</string>
+    <string name="update_status_with_last">Installed version: %1$s\nLast check: %2$s</string>
     <string name="update_available_title">Update %1$s available</string>
     <string name="update_download_prompt">Download and install %1$s now?</string>
     <string name="download_update">Download update</string>
