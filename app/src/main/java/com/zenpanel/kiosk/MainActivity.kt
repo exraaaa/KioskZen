@@ -91,6 +91,7 @@ class MainActivity : AppCompatActivity() {
     private var watchdogJob: Job? = null
     private var maintenanceJob: Job? = null
     private var pendingPresenceWakePermissionRequest = false
+    private var pendingStartupCameraPermissionRequest = false
     private var presenceWakeAnalysis: ImageAnalysis? = null
     private var presenceWakeCameraProvider: ProcessCameraProvider? = null
     private var presenceWakeExecutor: ExecutorService? = null
@@ -140,6 +141,13 @@ class MainActivity : AppCompatActivity() {
             pendingMediaPermissionCallback = null
             pendingMediaVideoSources = null
             pendingMediaAudioSources = null
+
+            if (pendingStartupCameraPermissionRequest) {
+                pendingStartupCameraPermissionRequest = false
+                if (result[Manifest.permission.CAMERA] != true) {
+                    prefs.recordLastLoadStatus("Startup camera permission denied")
+                }
+            }
 
             if (pendingPresenceWakePermissionRequest) {
                 pendingPresenceWakePermissionRequest = false
@@ -209,6 +217,7 @@ class MainActivity : AppCompatActivity() {
         setupAdminGesture()
         registerNetworkMonitoring()
         applyWindowSettings()
+        maybePromptStartupCameraPermission()
         applySchedulers()
         loadDashboard()
         maybeRunAutoUpdateCheck()
@@ -1097,6 +1106,30 @@ class MainActivity : AppCompatActivity() {
                 CameraSelector.DEFAULT_BACK_CAMERA
             else -> null
         }
+    }
+
+    private fun maybePromptStartupCameraPermission() {
+        val hasCameraPermission =
+            ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) ==
+                PackageManager.PERMISSION_GRANTED
+        if (hasCameraPermission) {
+            prefs.markStartupCameraPromptShown()
+            return
+        }
+        if (!prefs.shouldShowStartupCameraPrompt()) {
+            return
+        }
+
+        prefs.markStartupCameraPromptShown()
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.startup_camera_prompt_title)
+            .setMessage(R.string.startup_camera_prompt_message)
+            .setNegativeButton(R.string.not_now, null)
+            .setPositiveButton(R.string.allow_camera) { _, _ ->
+                pendingStartupCameraPermissionRequest = true
+                permissionLauncher.launch(arrayOf(Manifest.permission.CAMERA))
+            }
+            .show()
     }
 
     private fun analyzePresenceWakeFrame(imageProxy: ImageProxy) {

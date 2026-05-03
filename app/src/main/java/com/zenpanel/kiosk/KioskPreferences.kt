@@ -92,6 +92,14 @@ class KioskPreferences(context: Context) {
     private val prefs: SharedPreferences =
         context.getSharedPreferences(PREF_FILE, Context.MODE_PRIVATE)
 
+    fun shouldShowStartupCameraPrompt(): Boolean {
+        return !prefs.getBoolean(KEY_STARTUP_CAMERA_PROMPT_SHOWN, false)
+    }
+
+    fun markStartupCameraPromptShown() {
+        prefs.edit().putBoolean(KEY_STARTUP_CAMERA_PROMPT_SHOWN, true).apply()
+    }
+
     fun load(): KioskSettings {
         return KioskSettings(
             browserEngine = BrowserEngine.fromStoredValue(
@@ -649,6 +657,7 @@ class KioskPreferences(context: Context) {
         private const val KEY_AMBIENT_BRIGHTNESS_PERCENT = "ambient_brightness_percent"
         private const val KEY_PRESENCE_WAKE_ENABLED = "presence_wake_enabled"
         private const val KEY_PRESENCE_WAKE_COOLDOWN_SECONDS = "presence_wake_cooldown_seconds"
+        private const val KEY_STARTUP_CAMERA_PROMPT_SHOWN = "startup_camera_prompt_shown"
 
         private const val KEY_DIAG_LAST_ENGINE = "diag_last_engine"
         private const val KEY_DIAG_LAST_URL = "diag_last_url"
@@ -666,7 +675,7 @@ class KioskPreferences(context: Context) {
         private const val PBKDF2_SALT_BYTES = 16
 
         val DEFAULT_BROWSER_ENGINE = BrowserEngine.GECKO
-        const val DEFAULT_HOME_ASSISTANT_URL = "https://alexrafaelhaidu.github.io"
+        const val DEFAULT_HOME_ASSISTANT_URL = "https://exraaaa.github.io"
         const val DEFAULT_DASHBOARD_PATH = "KioskZen"
         const val DEFAULT_APPEND_KIOSK = false
         const val DEFAULT_RELOAD_INTERVAL_SECONDS = 20

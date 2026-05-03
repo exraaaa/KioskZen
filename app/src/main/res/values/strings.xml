@@ -48,6 +48,10 @@
     <string name="password_cleared_success">Admin password cleared</string>
     <string name="password_mismatch">Passwords do not match</string>
     <string name="password_too_short">Use at least 4 characters</string>
+    <string name="startup_camera_prompt_title">Allow camera access?</string>
+    <string name="startup_camera_prompt_message">Camera permission enables wake-on-face detection. You can skip now and enable it later in settings.</string>
+    <string name="allow_camera">Allow camera</string>
+    <string name="not_now">Not now</string>
     <string name="require_password_exit_only">Require password for Exit only</string>
     <string name="admin_unlock_timeout_minutes">Admin unlock timeout (minutes)</string>
 
