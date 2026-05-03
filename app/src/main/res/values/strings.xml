@@ -42,6 +42,7 @@
     <string name="enter_admin_password">Enter admin password</string>
     <string name="admin_password_hint">Password</string>
     <string name="unlock">Unlock</string>
+    <string name="verifying_password">Verifying...</string>
     <string name="invalid_admin_password">Incorrect password</string>
     <string name="password_set_success">Admin password saved</string>
     <string name="password_cleared_success">Admin password cleared</string>
@@ -143,7 +144,7 @@
     <string name="recovery_reconnected">Network restored</string>
     <string name="recovery_retry_scheduled">Auto-recovery scheduled</string>
     <string name="recovery_retry_details">Retrying in %1$d seconds</string>
-    <string name="recovery_service_unreachable">Health endpoint unreachable</string>
+    <string name="recovery_service_unreachable">Watchdog endpoint unreachable</string>
     <string name="recovery_restarting_engine">Restarting browser engine</string>
     <string name="recovery_back_online">Service recovered</string>
     <string name="recovery_maintenance">Maintenance window active</string>

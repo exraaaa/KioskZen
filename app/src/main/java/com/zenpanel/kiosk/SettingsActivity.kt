@@ -11,6 +11,7 @@ import android.view.View
 import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.EditText
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.tabs.TabLayout
@@ -618,21 +619,47 @@ class SettingsActivity : AppCompatActivity() {
                 android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
         }
 
-        MaterialAlertDialogBuilder(this)
+        val dialog = MaterialAlertDialogBuilder(this)
             .setTitle(R.string.exit_kiosk)
             .setView(input)
             .setNegativeButton(android.R.string.cancel, null)
-            .setPositiveButton(R.string.unlock) { _, _ ->
+            .setPositiveButton(R.string.unlock, null)
+            .create()
+
+        dialog.setOnShowListener {
+            val unlockButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+            val unlockLabel = getString(R.string.unlock)
+            unlockButton.setOnClickListener {
                 val candidate = input.text?.toString().orEmpty()
-                if (prefs.verifyAdminPassword(candidate)) {
-                    prefs.markAdminUnlockedNow()
-                    setResult(RESULT_OK, intentWithExit())
-                    finish()
-                } else {
-                    Toast.makeText(this, getString(R.string.invalid_admin_password), Toast.LENGTH_SHORT).show()
+                if (candidate.isBlank()) {
+                    input.error = getString(R.string.invalid_admin_password)
+                    return@setOnClickListener
+                }
+
+                unlockButton.isEnabled = false
+                unlockButton.text = getString(R.string.verifying_password)
+                input.error = null
+
+                scope.launch {
+                    val isValid = withContext(Dispatchers.Default) { prefs.verifyAdminPassword(candidate) }
+                    if (!dialog.isShowing) return@launch
+
+                    unlockButton.isEnabled = true
+                    unlockButton.text = unlockLabel
+                    if (isValid) {
+                        prefs.markAdminUnlockedNow()
+                        dialog.dismiss()
+                        setResult(RESULT_OK, intentWithExit())
+                        finish()
+                    } else {
+                        input.error = getString(R.string.invalid_admin_password)
+                        input.text?.clear()
+                    }
                 }
             }
-            .show()
+        }
+
+        dialog.show()
     }
 
     private fun ensureDownloadReceiver() {

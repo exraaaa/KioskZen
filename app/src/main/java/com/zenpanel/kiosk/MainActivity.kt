@@ -255,15 +255,33 @@ class MainActivity : AppCompatActivity() {
 
         dialog.setOnShowListener {
             passwordInput.requestFocus()
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+            val unlockButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+            val unlockLabel = getString(R.string.unlock)
+            unlockButton.setOnClickListener {
                 val candidate = passwordInput.text?.toString().orEmpty()
                 passwordLayout.error = null
-                if (prefs.verifyAdminPassword(candidate)) {
-                    dialog.dismiss()
-                    settingsLauncher.launch(Intent(this, SettingsActivity::class.java))
-                } else {
+                if (candidate.isBlank()) {
                     passwordLayout.error = getString(R.string.invalid_admin_password)
-                    passwordInput.text?.clear()
+                    return@setOnClickListener
+                }
+                unlockButton.isEnabled = false
+                unlockButton.text = getString(R.string.verifying_password)
+
+                scope.launch {
+                    val isValid = withContext(Dispatchers.Default) { prefs.verifyAdminPassword(candidate) }
+                    if (!dialog.isShowing) return@launch
+
+                    unlockButton.isEnabled = true
+                    unlockButton.text = unlockLabel
+
+                    if (isValid) {
+                        prefs.markAdminUnlockedNow()
+                        dialog.dismiss()
+                        settingsLauncher.launch(Intent(this@MainActivity, SettingsActivity::class.java))
+                    } else {
+                        passwordLayout.error = getString(R.string.invalid_admin_password)
+                        passwordInput.text?.clear()
+                    }
                 }
             }
         }
@@ -904,7 +922,8 @@ class MainActivity : AppCompatActivity() {
             connection.connect()
             val code = connection.responseCode
             connection.disconnect()
-            code in 200..399
+            // Any HTTP response means the server is reachable; treat only transport failures as unreachable.
+            code in 100..499
         }.getOrDefault(false)
     }
 

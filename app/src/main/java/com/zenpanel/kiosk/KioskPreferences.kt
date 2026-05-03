@@ -339,7 +339,15 @@ class KioskPreferences(context: Context) {
 
         val normalized = candidate.trim()
         return if (stored.startsWith(PASSWORD_HASH_PREFIX)) {
-            verifyPbkdf2Password(stored, normalized)
+            val matches = verifyPbkdf2Password(stored, normalized)
+            if (matches) {
+                val iterationCount = parsePbkdf2Iterations(stored)
+                if (iterationCount != null && iterationCount > PBKDF2_ITERATIONS) {
+                    // Re-save with the current work factor so future unlocks are faster on older tablets.
+                    setAdminPassword(normalized)
+                }
+            }
+            matches
         } else {
             val legacyMatches = stored == hashLegacyPassword(normalized)
             if (legacyMatches) {
@@ -617,7 +625,7 @@ class KioskPreferences(context: Context) {
 
         private val KIOSK_QUERY_REGEX = Regex("([?&])kiosk(=|&|$)")
         private const val PASSWORD_HASH_PREFIX = "pbkdf2_sha256"
-        private const val PBKDF2_ITERATIONS = 310_000
+        private const val PBKDF2_ITERATIONS = 120_000
         private const val PBKDF2_KEY_LENGTH_BITS = 256
         private const val PBKDF2_SALT_BYTES = 16
 
@@ -742,6 +750,14 @@ class KioskPreferences(context: Context) {
 
             val candidate = pbkdf2(rawPassword, salt, iterations)
             return MessageDigest.isEqual(candidate, expected)
+        }
+
+        private fun parsePbkdf2Iterations(stored: String): Int? {
+            val parts = stored.split(':')
+            if (parts.size != 4 || parts[0] != PASSWORD_HASH_PREFIX) {
+                return null
+            }
+            return parts[1].toIntOrNull()
         }
 
         private fun pbkdf2(rawPassword: String, salt: ByteArray, iterations: Int): ByteArray {
