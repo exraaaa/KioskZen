@@ -1,15 +1,38 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Widget.HAKioskGecko.SectionCard" parent="Widget.Material3.CardView.Elevated">
-        <item name="cardUseCompatPadding">true</item>
-        <item name="cardCornerRadius">18dp</item>
-        <item name="strokeWidth">0dp</item>
+    <style name="Widget.HAKioskGecko.SectionCard" parent="Widget.Material3.CardView.Outlined">
+        <item name="cardBackgroundColor">@color/card_surface</item>
+        <item name="cardUseCompatPadding">false</item>
+        <item name="cardCornerRadius">22dp</item>
+        <item name="cardElevation">0dp</item>
+        <item name="strokeColor">@color/card_stroke</item>
+        <item name="strokeWidth">1dp</item>
     </style>
 
     <style name="Widget.HAKioskGecko.SettingsTextInput" parent="Widget.Material3.TextInputLayout.OutlinedBox">
-        <item name="boxCornerRadiusTopStart">12dp</item>
-        <item name="boxCornerRadiusTopEnd">12dp</item>
-        <item name="boxCornerRadiusBottomStart">12dp</item>
-        <item name="boxCornerRadiusBottomEnd">12dp</item>
+        <item name="boxCornerRadiusTopStart">14dp</item>
+        <item name="boxCornerRadiusTopEnd">14dp</item>
+        <item name="boxCornerRadiusBottomStart">14dp</item>
+        <item name="boxCornerRadiusBottomEnd">14dp</item>
+        <item name="boxStrokeColor">@color/card_stroke</item>
+        <item name="boxBackgroundColor">@color/glass_input_surface</item>
+    </style>
+
+    <style name="Widget.HAKioskGecko.Button.Primary" parent="Widget.Material3.Button">
+        <item name="backgroundTint">@color/brand_primary</item>
+        <item name="cornerRadius">14dp</item>
+        <item name="android:textColor">@color/white</item>
+    </style>
+
+    <style name="Widget.HAKioskGecko.Button.Tonal" parent="Widget.Material3.Button.TonalButton">
+        <item name="backgroundTint">@color/brand_primary_faint</item>
+        <item name="cornerRadius">14dp</item>
+        <item name="android:textColor">?attr/colorOnSurface</item>
+    </style>
+
+    <style name="Widget.HAKioskGecko.Button.GlassOutlined" parent="Widget.Material3.Button.OutlinedButton">
+        <item name="cornerRadius">14dp</item>
+        <item name="strokeColor">@color/glass_card_stroke</item>
+        <item name="android:textColor">?attr/colorOnSurface</item>
     </style>
 </resources>

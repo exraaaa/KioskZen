@@ -1,6 +1,27 @@
+import com.android.build.gradle.internal.api.ApkVariantOutputImpl
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+}
+
+val signingPropertiesFile = rootProject.file("keystore/signing.properties")
+val signingProperties = Properties().apply {
+    if (signingPropertiesFile.exists()) {
+        FileInputStream(signingPropertiesFile).use { load(it) }
+    }
+}
+val hasReleaseSigning = listOf(
+    "storeFile",
+    "storePassword",
+    "keyAlias",
+    "keyPassword"
+).all { key -> !signingProperties.getProperty(key).isNullOrBlank() }
+
+if (!hasReleaseSigning) {
+    println("Release signing is not configured. Fill keystore/signing.properties to create installable release APKs.")
 }
 
 android {
@@ -11,15 +32,33 @@ android {
         applicationId = "com.zenpanel.kiosk"
         minSdk = 26
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.1.0"
+        versionCode = 5
+        versionName = "1.4.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        create("release") {
+            if (hasReleaseSigning) {
+                storeFile = rootProject.file(signingProperties.getProperty("storeFile"))
+                storePassword = signingProperties.getProperty("storePassword")
+                keyAlias = signingProperties.getProperty("keyAlias")
+                keyPassword = signingProperties.getProperty("keyPassword")
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
+                enableV4Signing = true
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -41,6 +80,19 @@ android {
 
     buildFeatures {
         viewBinding = true
+    }
+
+    // Keep debug artifacts as the default names, but produce a release APK name
+    // that includes versionName and updates automatically when versionName changes.
+    applicationVariants.all {
+        val variant = this
+        outputs.all {
+            if (variant.buildType.name == "release") {
+                val output = this as ApkVariantOutputImpl
+                val resolvedVersionName = variant.versionName ?: "0.0.0"
+                output.outputFileName = "KioskZen-v$resolvedVersionName-release.apk"
+            }
+        }
     }
 }
 

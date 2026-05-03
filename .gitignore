@@ -15,6 +15,9 @@ local.properties
 .gradle-home/
 .gradle-home-*/
 .gradle-tmp/
+.gradle-local/
+.gradle-user/
+.gradle-user*/
 
 # Temp Gradle distribution used during setup
 gradle-8.7/
@@ -31,3 +34,11 @@ logo*.svg
 logo*.png
 icon*.svg
 icon*.png
+
+# Release signing secrets
+keystore/*.jks
+keystore/signing.properties
+
+# Local QA captures
+kioskzen_*.png
+kioskzen_*.jpg

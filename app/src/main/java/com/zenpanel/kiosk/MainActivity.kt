@@ -1,6 +1,9 @@
 package com.zenpanel.kiosk
 
 import android.Manifest
+import android.app.ActivityManager
+import android.app.admin.DevicePolicyManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -11,6 +14,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
+import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.webkit.CookieManager
@@ -35,36 +39,55 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import com.zenpanel.kiosk.databinding.ActivityMainBinding
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.mozilla.geckoview.AllowOrDeny
 import org.mozilla.geckoview.GeckoResult
 import org.mozilla.geckoview.GeckoRuntime
 import org.mozilla.geckoview.GeckoRuntimeSettings
 import org.mozilla.geckoview.GeckoSession
 import org.mozilla.geckoview.WebRequestError
+import java.net.HttpURLConnection
+import java.net.URL
+import java.util.Calendar
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private lateinit var prefs: KioskPreferences
 
-    private var runtime: GeckoRuntime? = null
     private var session: GeckoSession? = null
     private var webViewConfigured = false
     private var defaultWebViewUserAgent: String? = null
     private var currentEngine: BrowserEngine? = null
     private var activeSettings: KioskSettings? = null
+    private var loadedDashboardUrl: String = ""
 
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var pendingRetry: Runnable? = null
+    private var ambientDimRunnable: Runnable? = null
     private var pendingPermissionCallback: GeckoSession.PermissionDelegate.Callback? = null
     private var pendingMediaPermissionCallback: GeckoSession.PermissionDelegate.MediaCallback? = null
     private var pendingMediaVideoSources: Array<GeckoSession.PermissionDelegate.MediaSource>? = null
     private var pendingMediaAudioSources: Array<GeckoSession.PermissionDelegate.MediaSource>? = null
     private var pendingWebPermissionRequest: PermissionRequest? = null
+    private var watchdogJob: Job? = null
+    private var maintenanceJob: Job? = null
 
     private var tapCount = 0
     private var firstTapAt = 0L
     private var networkWasLost = false
     private var networkCallbackRegistered = false
+    private var watchdogFailureCount = 0
+    private var isAmbientDimmed = false
+    private var updateCheckInProgress = false
 
     private val permissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
@@ -76,11 +99,7 @@ class MainActivity : AppCompatActivity() {
             pendingPermissionCallback = null
 
             pendingWebPermissionRequest?.let { request ->
-                if (grantedAll) {
-                    request.grant(request.resources)
-                } else {
-                    request.deny()
-                }
+                if (grantedAll) request.grant(request.resources) else request.deny()
             }
             pendingWebPermissionRequest = null
 
@@ -102,6 +121,14 @@ class MainActivity : AppCompatActivity() {
     private val settingsLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             applyWindowSettings()
+            applySchedulers()
+            if (result.resultCode == RESULT_OK &&
+                result.data?.getBooleanExtra(SettingsActivity.EXTRA_EXIT_APP, false) == true
+            ) {
+                exitKioskNow()
+                return@registerForActivityResult
+            }
+
             if (result.resultCode == RESULT_OK &&
                 result.data?.getBooleanExtra(SettingsActivity.EXTRA_RELOAD_NOW, false) == true
             ) {
@@ -117,8 +144,10 @@ class MainActivity : AppCompatActivity() {
         override fun onAvailable(network: android.net.Network) {
             if (networkWasLost) {
                 networkWasLost = false
+                prefs.recordNetworkState("available")
                 mainHandler.postDelayed({
                     if (!isDestroyed) {
+                        showRecoveryOverlay(getString(R.string.recovery_reconnected), "")
                         loadDashboard()
                     }
                 }, QUICK_RELOAD_DELAY_MS)
@@ -127,22 +156,27 @@ class MainActivity : AppCompatActivity() {
 
         override fun onLost(network: android.net.Network) {
             networkWasLost = true
+            prefs.recordNetworkState("lost")
+            showRecoveryOverlay(getString(R.string.recovery_network_lost), getString(R.string.recovery_waiting))
             scheduleRetry("Network lost")
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        prefs = KioskPreferences(this)
+        prefs.applyThemeMode()
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        prefs = KioskPreferences(this)
         WebView.setWebContentsDebuggingEnabled(false)
 
         setupAdminGesture()
         registerNetworkMonitoring()
         applyWindowSettings()
+        applySchedulers()
         loadDashboard()
+        maybeRunAutoUpdateCheck()
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
@@ -153,7 +187,9 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        prefs.applyThemeMode()
         applyWindowSettings()
+        resetAmbientTimer()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -163,10 +199,16 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
+        resetAmbientTimer()
+        return super.dispatchTouchEvent(ev)
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         unregisterNetworkMonitoring()
         mainHandler.removeCallbacksAndMessages(null)
+        scope.cancel()
         closeGeckoSession()
         destroyWebView()
     }
@@ -190,7 +232,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun requestAdminAccess() {
-        if (!prefs.hasAdminPassword()) {
+        val settings = prefs.load()
+        val mustPrompt = prefs.hasAdminPassword() &&
+            !settings.requirePasswordForExitOnly
+
+        if (!mustPrompt) {
             settingsLauncher.launch(Intent(this, SettingsActivity::class.java))
             return
         }
@@ -231,14 +277,20 @@ class MainActivity : AppCompatActivity() {
 
         val settings = prefs.load()
         activeSettings = settings
+        applyLockTaskMode(settings)
         switchEngine(settings.browserEngine)
+
         val url = prefs.buildDashboardUrl(settings)
+        loadedDashboardUrl = url
+        prefs.recordLastUrl(url)
+        prefs.recordLastEngine(settings.browserEngine)
+        binding.recoveryOverlay.visibility = View.GONE
 
         when (settings.browserEngine) {
             BrowserEngine.GECKO -> session?.loadUri(url)
             BrowserEngine.WEBVIEW, BrowserEngine.CHROMIUM_CUSTOM_TAB -> {
                 binding.webView.stopLoading()
-                applyWebEngineProfile(settings.browserEngine)
+                applyWebEngineProfile(settings)
                 binding.webView.loadUrl(url)
             }
         }
@@ -257,13 +309,7 @@ class MainActivity : AppCompatActivity() {
                 createOrRecreateGeckoSession()
             }
 
-            BrowserEngine.WEBVIEW -> {
-                closeGeckoSession()
-                binding.geckoView.visibility = View.GONE
-                binding.webView.visibility = View.VISIBLE
-                configureWebViewIfNeeded()
-            }
-
+            BrowserEngine.WEBVIEW,
             BrowserEngine.CHROMIUM_CUSTOM_TAB -> {
                 closeGeckoSession()
                 binding.geckoView.visibility = View.GONE
@@ -282,19 +328,17 @@ class MainActivity : AppCompatActivity() {
         binding.webView.apply {
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
-            settings.mediaPlaybackRequiresUserGesture = false
             settings.loadsImagesAutomatically = true
             settings.useWideViewPort = true
             settings.loadWithOverviewMode = true
             settings.javaScriptCanOpenWindowsAutomatically = false
             settings.setSupportMultipleWindows(false)
-            settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
             settings.allowFileAccess = false
             settings.allowContentAccess = false
             settings.safeBrowsingEnabled = true
+            settings.mediaPlaybackRequiresUserGesture = false
 
             CookieManager.getInstance().setAcceptCookie(true)
-            CookieManager.getInstance().setAcceptThirdPartyCookies(this, false)
             defaultWebViewUserAgent = settings.userAgentString
 
             webChromeClient = object : WebChromeClient() {
@@ -307,7 +351,6 @@ class MainActivity : AppCompatActivity() {
 
                         val requiredPermissions =
                             mapWebResourcesToAndroidPermissions(request.resources)
-
                         if (requiredPermissions.isEmpty() || hasAllPermissions(requiredPermissions)) {
                             request.grant(request.resources)
                             return@runOnUiThread
@@ -333,7 +376,7 @@ class MainActivity : AppCompatActivity() {
                     } else {
                         Toast.makeText(
                             this@MainActivity,
-                            "Blocked navigation to unsupported URL",
+                            getString(R.string.blocked_navigation),
                             Toast.LENGTH_SHORT
                         ).show()
                         true
@@ -346,6 +389,7 @@ class MainActivity : AppCompatActivity() {
                     error: WebResourceError
                 ) {
                     if (request.isForMainFrame) {
+                        prefs.recordLastLoadStatus("WebView error: ${error.description}")
                         scheduleRetry("WebView load error: ${error.description}")
                     }
                 }
@@ -356,6 +400,7 @@ class MainActivity : AppCompatActivity() {
                     errorResponse: WebResourceResponse
                 ) {
                     if (request.isForMainFrame && errorResponse.statusCode >= 500) {
+                        prefs.recordLastLoadStatus("WebView HTTP ${errorResponse.statusCode}")
                         scheduleRetry("WebView HTTP ${errorResponse.statusCode}")
                     }
                 }
@@ -364,6 +409,7 @@ class MainActivity : AppCompatActivity() {
                     view: WebView,
                     detail: android.webkit.RenderProcessGoneDetail
                 ): Boolean {
+                    prefs.recordCrash("WebView render process gone")
                     scheduleRetry("WebView render process gone")
                     return true
                 }
@@ -371,27 +417,30 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun applyWebEngineProfile(engine: BrowserEngine) {
+    private fun applyWebEngineProfile(settings: KioskSettings) {
         val webSettings = binding.webView.settings
         if (defaultWebViewUserAgent.isNullOrBlank()) {
             defaultWebViewUserAgent = webSettings.userAgentString
         }
 
-        when (engine) {
-            BrowserEngine.WEBVIEW -> {
-                webSettings.userAgentString = defaultWebViewUserAgent
-                webSettings.builtInZoomControls = false
-                webSettings.displayZoomControls = false
-            }
+        webSettings.mediaPlaybackRequiresUserGesture = !settings.autoplayEnabled
+        webSettings.mixedContentMode = if (settings.allowMixedContent) {
+            WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+        } else {
+            WebSettings.MIXED_CONTENT_NEVER_ALLOW
+        }
+        CookieManager.getInstance().setAcceptThirdPartyCookies(
+            binding.webView,
+            settings.allowThirdPartyCookies
+        )
 
-            BrowserEngine.CHROMIUM_CUSTOM_TAB -> {
-                val baseUa = defaultWebViewUserAgent ?: webSettings.userAgentString.orEmpty()
-                webSettings.userAgentString = forceChromiumLikeUserAgent(baseUa)
-                webSettings.builtInZoomControls = false
-                webSettings.displayZoomControls = false
-            }
-
-            BrowserEngine.GECKO -> Unit
+        val defaultUa = defaultWebViewUserAgent ?: webSettings.userAgentString.orEmpty()
+        val customUa = settings.customUserAgent.trim()
+        webSettings.userAgentString = when {
+            customUa.isNotBlank() -> customUa
+            settings.desktopMode -> DESKTOP_UA
+            settings.browserEngine == BrowserEngine.CHROMIUM_CUSTOM_TAB -> forceChromiumLikeUserAgent(defaultUa)
+            else -> defaultUa
         }
     }
 
@@ -399,9 +448,7 @@ class MainActivity : AppCompatActivity() {
         if (base.isBlank()) {
             return CHROMIUM_FALLBACK_UA
         }
-        // Keep the system WebView UA mostly intact, but strip the WebView token.
-        return base.replace("; wv", "")
-            .replace(" wv", "")
+        return base.replace("; wv", "").replace(" wv", "")
     }
 
     private fun hasAllPermissions(permissions: Array<String>): Boolean {
@@ -428,11 +475,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun isAllowedSubresourceUrl(url: String?): Boolean {
         val scheme = parseUri(url)?.scheme?.lowercase() ?: return false
-        return scheme == "http" ||
-            scheme == "https" ||
-            scheme == "about" ||
-            scheme == "data" ||
-            scheme == "blob"
+        return scheme == "http" || scheme == "https" || scheme == "about" || scheme == "data" || scheme == "blob"
     }
 
     private fun isTrustedOrigin(candidateUrl: String?): Boolean {
@@ -475,16 +518,24 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun getGeckoRuntime(): GeckoRuntime {
-        val current = runtime
+        val current = sharedRuntime
         if (current != null) {
             return current
         }
-        return GeckoRuntime.create(
-            this,
-            GeckoRuntimeSettings.Builder()
-                .consoleOutput(false)
-                .build()
-        ).also { runtime = it }
+        synchronized(geckoRuntimeLock) {
+            val cached = sharedRuntime
+            if (cached != null) {
+                return cached
+            }
+            return GeckoRuntime.create(
+                this,
+                GeckoRuntimeSettings.Builder()
+                    .consoleOutput(false)
+                    .build()
+            ).also { created ->
+                sharedRuntime = created
+            }
+        }
     }
 
     private fun createGeckoNavigationDelegate(): GeckoSession.NavigationDelegate {
@@ -498,7 +549,7 @@ class MainActivity : AppCompatActivity() {
                 } else {
                     Toast.makeText(
                         this@MainActivity,
-                        "Blocked navigation to unsupported URL",
+                        getString(R.string.blocked_navigation),
                         Toast.LENGTH_SHORT
                     ).show()
                     GeckoResult.fromValue(AllowOrDeny.DENY)
@@ -516,11 +567,23 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
+            override fun onLocationChange(
+                session: GeckoSession,
+                url: String?,
+                perms: MutableList<GeckoSession.PermissionDelegate.ContentPermission>,
+                hasUserGesture: Boolean
+            ) {
+                if (!url.isNullOrBlank()) {
+                    prefs.recordLastUrl(url)
+                }
+            }
+
             override fun onLoadError(
                 session: GeckoSession,
                 uri: String?,
                 error: WebRequestError
             ): GeckoResult<String>? {
+                prefs.recordLastLoadStatus("Gecko load error")
                 scheduleRetry("Gecko load error")
                 return null
             }
@@ -529,8 +592,16 @@ class MainActivity : AppCompatActivity() {
 
     private fun createGeckoProgressDelegate(): GeckoSession.ProgressDelegate {
         return object : GeckoSession.ProgressDelegate {
+            override fun onPageStart(session: GeckoSession, url: String) {
+                prefs.recordLastLoadStatus("Loading...")
+            }
+
             override fun onPageStop(session: GeckoSession, success: Boolean) {
-                if (!success) {
+                prefs.recordLastLoadStatus(if (success) "Loaded successfully" else "Load failed")
+                if (success) {
+                    watchdogFailureCount = 0
+                    binding.recoveryOverlay.visibility = View.GONE
+                } else {
                     scheduleRetry("Gecko page finished with failure")
                 }
             }
@@ -540,10 +611,12 @@ class MainActivity : AppCompatActivity() {
     private fun createGeckoContentDelegate(): GeckoSession.ContentDelegate {
         return object : GeckoSession.ContentDelegate {
             override fun onCrash(session: GeckoSession) {
+                prefs.recordCrash("Gecko content process crashed")
                 recreateGeckoSessionAfterFailure("Gecko content process crashed")
             }
 
             override fun onKill(session: GeckoSession) {
+                prefs.recordCrash("Gecko content process was killed")
                 recreateGeckoSessionAfterFailure("Gecko content process was killed")
             }
         }
@@ -632,7 +705,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun recreateGeckoSessionAfterFailure(reason: String) {
         Log.w(TAG, reason)
-        Toast.makeText(this, "Dashboard engine restarted", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, getString(R.string.engine_restarted), Toast.LENGTH_SHORT).show()
+        showRecoveryOverlay(getString(R.string.recovery_restarting_engine), reason)
         createOrRecreateGeckoSession()
         scheduleRetry(reason)
     }
@@ -664,6 +738,8 @@ class MainActivity : AppCompatActivity() {
         } else {
             exitImmersiveMode()
         }
+
+        applyLockTaskMode(settings)
     }
 
     private fun enterImmersiveMode() {
@@ -681,6 +757,198 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
+    private fun applyLockTaskMode(settings: KioskSettings) {
+        val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+        val admin = ComponentName(this, KioskDeviceAdminReceiver::class.java)
+        val isDeviceOwner = dpm.isDeviceOwnerApp(packageName)
+
+        if (settings.lockTaskMode) {
+            if (isDeviceOwner) {
+                runCatching {
+                    dpm.setLockTaskPackages(admin, arrayOf(packageName))
+                }.onFailure { error ->
+                    prefs.recordWatchdogState("lock-task policy failed: ${error.message}")
+                }
+            }
+
+            val permitted = dpm.isLockTaskPermitted(packageName) || isDeviceOwner
+            if (permitted && !isLockTaskModeRunning()) {
+                runCatching { startLockTask() }.onFailure { error ->
+                    prefs.recordWatchdogState("lock-task start failed: ${error.message}")
+                }
+            }
+        } else {
+            attemptStopLockTaskIfRunning()
+        }
+    }
+
+    private fun attemptStopLockTaskIfRunning() {
+        if (!isLockTaskModeRunning()) {
+            return
+        }
+        runCatching { stopLockTask() }.onFailure {
+            // Ignore, app may not own lock task in this state.
+        }
+    }
+
+    private fun isLockTaskModeRunning(): Boolean {
+        val activityManager = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        return activityManager.lockTaskModeState != ActivityManager.LOCK_TASK_MODE_NONE
+    }
+
+    private fun applySchedulers() {
+        scheduleMaintenanceWindow()
+        scheduleWatchdog()
+        resetAmbientTimer()
+    }
+
+    private fun scheduleMaintenanceWindow() {
+        maintenanceJob?.cancel()
+        val settings = prefs.load()
+        if (!settings.maintenanceEnabled) {
+            return
+        }
+
+        maintenanceJob = scope.launch {
+            while (isActive) {
+                val delayMillis = millisUntilNextMaintenance(settings)
+                delay(delayMillis)
+                if (!isActive) break
+
+                prefs.recordLastLoadStatus("Maintenance refresh")
+                showRecoveryOverlay(
+                    getString(R.string.recovery_maintenance),
+                    getString(R.string.recovery_maintenance_desc)
+                )
+                clearActiveEngineCache()
+                loadDashboard()
+            }
+        }
+    }
+
+    private fun millisUntilNextMaintenance(settings: KioskSettings): Long {
+        val now = Calendar.getInstance()
+        val next = Calendar.getInstance().apply {
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+            set(Calendar.HOUR_OF_DAY, settings.maintenanceHour)
+            set(Calendar.MINUTE, settings.maintenanceMinute)
+            if (before(now)) {
+                add(Calendar.DAY_OF_YEAR, 1)
+            }
+        }
+        return maxOf(60_000L, next.timeInMillis - now.timeInMillis)
+    }
+
+    private fun clearActiveEngineCache() {
+        when (currentEngine) {
+            BrowserEngine.GECKO -> createOrRecreateGeckoSession()
+            BrowserEngine.WEBVIEW,
+            BrowserEngine.CHROMIUM_CUSTOM_TAB -> binding.webView.clearCache(true)
+            null -> Unit
+        }
+    }
+
+    private fun scheduleWatchdog() {
+        watchdogJob?.cancel()
+        watchdogFailureCount = 0
+        val settings = prefs.load()
+        if (!settings.watchdogEnabled) {
+            return
+        }
+
+        watchdogJob = scope.launch {
+            while (isActive) {
+                delay(settings.watchdogPingIntervalSeconds * 1_000L)
+                val currentSettings = prefs.load()
+                if (!currentSettings.watchdogEnabled) break
+
+                val pingUrl = buildWatchdogUrl(currentSettings)
+                val healthy = withContext(Dispatchers.IO) { pingUrl(pingUrl) }
+                if (healthy) {
+                    watchdogFailureCount = 0
+                    prefs.recordWatchdogState("ok")
+                    if (binding.recoveryOverlay.visibility == View.VISIBLE) {
+                        showRecoveryOverlay(getString(R.string.recovery_back_online), pingUrl)
+                        mainHandler.postDelayed({ binding.recoveryOverlay.visibility = View.GONE }, 1_800L)
+                    }
+                } else {
+                    watchdogFailureCount += 1
+                    prefs.recordWatchdogState("fail($watchdogFailureCount)")
+                    showRecoveryOverlay(getString(R.string.recovery_service_unreachable), pingUrl)
+                    if (currentSettings.autoReloadOnFailure && watchdogFailureCount >= 2) {
+                        scheduleRetry("Watchdog ping failure")
+                    }
+                    if (watchdogFailureCount >= 4) {
+                        recreateCurrentEngine()
+                    }
+                }
+            }
+        }
+    }
+
+    private fun buildWatchdogUrl(settings: KioskSettings): String {
+        val base = KioskPreferences.normalizeBaseUrl(settings.homeAssistantUrl).trimEnd('/')
+        val path = KioskPreferences.normalizeDashboardPath(settings.watchdogPingPath)
+        return if (path.isBlank()) base else "$base/$path"
+    }
+
+    private fun pingUrl(url: String): Boolean {
+        return runCatching {
+            val connection = (URL(url).openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 6_000
+                readTimeout = 6_000
+                instanceFollowRedirects = true
+            }
+            connection.connect()
+            val code = connection.responseCode
+            connection.disconnect()
+            code in 200..399
+        }.getOrDefault(false)
+    }
+
+    private fun recreateCurrentEngine() {
+        when (currentEngine) {
+            BrowserEngine.GECKO -> createOrRecreateGeckoSession()
+            BrowserEngine.WEBVIEW,
+            BrowserEngine.CHROMIUM_CUSTOM_TAB -> {
+                destroyWebView()
+                configureWebViewIfNeeded()
+            }
+            null -> Unit
+        }
+        loadDashboard()
+    }
+
+    private fun resetAmbientTimer() {
+        ambientDimRunnable?.let(mainHandler::removeCallbacks)
+        val settings = prefs.load()
+        if (!settings.ambientModeEnabled) {
+            setWindowBrightness(WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE)
+            isAmbientDimmed = false
+            return
+        }
+
+        if (isAmbientDimmed) {
+            setWindowBrightness(WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE)
+            isAmbientDimmed = false
+        }
+
+        ambientDimRunnable = Runnable {
+            val dimLevel = settings.ambientBrightnessPercent / 100f
+            setWindowBrightness(dimLevel)
+            isAmbientDimmed = true
+        }
+        mainHandler.postDelayed(ambientDimRunnable!!, settings.ambientDimAfterSeconds * 1_000L)
+    }
+
+    private fun setWindowBrightness(value: Float) {
+        val params = window.attributes
+        params.screenBrightness = value
+        window.attributes = params
+    }
+
     private fun registerNetworkMonitoring() {
         if (networkCallbackRegistered) {
             return
@@ -688,8 +956,10 @@ class MainActivity : AppCompatActivity() {
         try {
             connectivityManager.registerDefaultNetworkCallback(networkCallback)
             networkCallbackRegistered = true
+            prefs.recordNetworkState("registered")
         } catch (e: Exception) {
             Log.w(TAG, "Failed to register network callback", e)
+            prefs.recordNetworkState("register_failed")
         }
     }
 
@@ -708,22 +978,97 @@ class MainActivity : AppCompatActivity() {
 
     private fun scheduleRetry(reason: String) {
         val settings = prefs.load()
-        val delayMs = settings.reloadIntervalSeconds * 1_000L
+        if (!settings.autoReloadOnFailure) {
+            prefs.recordLastLoadStatus("Auto-reload disabled ($reason)")
+            return
+        }
 
+        val delayMs = settings.reloadIntervalSeconds * 1_000L
         pendingRetry?.let(mainHandler::removeCallbacks)
         pendingRetry = Runnable { loadDashboard() }
         mainHandler.postDelayed(pendingRetry!!, delayMs)
+        prefs.recordLastLoadStatus("Reload in ${settings.reloadIntervalSeconds}s ($reason)")
+
+        showRecoveryOverlay(
+            getString(R.string.recovery_retry_scheduled),
+            getString(R.string.recovery_retry_details, settings.reloadIntervalSeconds)
+        )
 
         Log.w(TAG, "Scheduled reload in ${settings.reloadIntervalSeconds}s. Reason: $reason")
     }
 
+    private fun showRecoveryOverlay(title: String, details: String) {
+        binding.recoveryOverlay.visibility = View.VISIBLE
+        binding.recoveryMessage.text = title
+        binding.recoveryDetails.text = details
+    }
+
+    private fun exitKioskNow() {
+        attemptStopLockTaskIfRunning()
+        finishAndRemoveTask()
+    }
+
+    private fun maybeRunAutoUpdateCheck() {
+        val settings = prefs.load()
+        if (!settings.updatesEnabled || updateCheckInProgress || !KioskPreferences.isValidRepoSlug(settings.updatesRepo)) {
+            return
+        }
+
+        val now = System.currentTimeMillis()
+        val rawPrefs = getSharedPreferences(RAW_PREFS_NAME, MODE_PRIVATE)
+        val lastCheck = rawPrefs.getLong(KEY_LAST_UPDATE_CHECK_AT, 0L)
+        val cooldown = settings.updateCheckIntervalHours * 3_600_000L
+        if (now - lastCheck < cooldown) {
+            return
+        }
+
+        updateCheckInProgress = true
+        rawPrefs.edit().putLong(KEY_LAST_UPDATE_CHECK_AT, now).apply()
+        scope.launch {
+            val result = withContext(Dispatchers.IO) {
+                UpdateManager.fetchLatestRelease(settings.updatesRepo)
+            }
+            updateCheckInProgress = false
+
+            result.onSuccess { release ->
+                val hasUpdate = UpdateManager.isNewerRelease(currentVersionName(), release.tagName)
+                prefs.recordUpdateState(
+                    if (hasUpdate) "update ${release.tagName} available" else "up-to-date (${release.tagName})"
+                )
+                if (hasUpdate) {
+                    Toast.makeText(
+                        this@MainActivity,
+                        getString(R.string.update_available_toast, release.tagName),
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }.onFailure { error ->
+                prefs.recordUpdateState("update check failed: ${error.message}")
+            }
+        }
+    }
+
     companion object {
-        private const val TAG = "HAKioskMain"
+        private const val TAG = "KioskZenMain"
         private const val ADMIN_GESTURE_TAP_COUNT = 5
         private const val ADMIN_GESTURE_WINDOW_MS = 2_500L
         private const val QUICK_RELOAD_DELAY_MS = 1_200L
         private const val CHROMIUM_FALLBACK_UA =
             "Mozilla/5.0 (Linux; Android 15; Tablet) AppleWebKit/537.36 " +
                 "(KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36"
+        private const val DESKTOP_UA =
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 " +
+                "(KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36"
+        private const val RAW_PREFS_NAME = "ha_kiosk_prefs"
+        private const val KEY_LAST_UPDATE_CHECK_AT = "last_update_check_at"
+        @Volatile
+        private var sharedRuntime: GeckoRuntime? = null
+        private val geckoRuntimeLock = Any()
+    }
+
+    private fun currentVersionName(): String {
+        return runCatching {
+            packageManager.getPackageInfo(packageName, 0).versionName ?: "0.0.0"
+        }.getOrDefault("0.0.0")
     }
 }

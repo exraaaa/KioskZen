@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#000000</color>
+    <color name="white">#FFFFFF</color>
+    <color name="ic_launcher_background">#FFFFFF</color>
+
+    <color name="surface_base">#040C1A</color>
+    <color name="page_gradient_start">#071527</color>
+    <color name="page_gradient_center">#051323</color>
+    <color name="page_gradient_end">#0A1C1B</color>
+    <color name="page_orb_primary">#6620D7C1</color>
+    <color name="page_orb_secondary">#663A72F8</color>
+    <color name="page_scrim">#140A1122</color>
+
+    <color name="brand_surface">#0B1830</color>
+    <color name="brand_stroke">#2A4A76</color>
+    <color name="brand_on_surface">#EAF2FF</color>
+    <color name="brand_on_surface_subtle">#AFC4E6</color>
+    <color name="brand_primary">#66B3FF</color>
+    <color name="brand_primary_faint">#3366B3FF</color>
+    <color name="tab_nav_unselected">#AFC4E6</color>
+
+    <color name="card_surface">#6612223D</color>
+    <color name="card_stroke">#66558CC8</color>
+    <color name="glass_hero_surface">#B30A1830</color>
+    <color name="glass_input_surface">#331E3A61</color>
+    <color name="glass_card_stroke">#669FD4FF</color>
+
+    <color name="recovery_bg">#0F2139</color>
+    <color name="recovery_stroke">#2B476D</color>
+    <color name="recovery_on_bg">#E4EEFF</color>
+    <color name="recovery_on_bg_subtle">#ACC3E5</color>
+
+    <color name="destructive">#EB6C6C</color>
+</resources>

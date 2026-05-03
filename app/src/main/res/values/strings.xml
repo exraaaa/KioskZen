@@ -1,16 +1,38 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">KioskZen</string>
-    <string name="settings_title">Kiosk Settings</string>
-    <string name="settings_subtitle">Tune the kiosk behavior, browser engine, and access controls.</string>
-    <string name="section_browser_and_admin">Browser &amp; Admin Access</string>
-    <string name="section_dashboard">Dashboard Source</string>
-    <string name="section_behavior">Kiosk Behavior</string>
+
+    <string name="settings_title">KioskZen Control Center</string>
+    <string name="settings_subtitle">Quick navigation for engine, dashboard, automation, and security controls.</string>
+    <string name="settings_saved">Settings saved</string>
+    <string name="defaults_restored">Defaults restored</string>
+
+    <string name="section_browser_and_admin">Browser Engine &amp; Admin</string>
+    <string name="section_dashboard">Dashboard &amp; Recovery</string>
+    <string name="section_engine_toggles">Engine Compatibility</string>
+    <string name="section_watchdog">Health Watchdog</string>
+    <string name="section_profile_scheduling">Dashboard Profiles</string>
+    <string name="section_maintenance_ambient">Maintenance &amp; Ambient</string>
+    <string name="section_updates">App Updates</string>
     <string name="section_actions">Actions</string>
+
     <string name="browser_engine">Browser engine</string>
+    <string name="theme_mode">Appearance theme</string>
+    <string name="theme_system">System</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="nav_display">Display</string>
+    <string name="nav_dashboard">Dashboard</string>
+    <string name="nav_engine">Engine</string>
+    <string name="nav_watchdog">Watchdog</string>
+    <string name="nav_automation">Automation</string>
+    <string name="nav_updates">Updates</string>
+    <string name="nav_actions">Actions</string>
     <string name="engine_gecko">GeckoView (Firefox engine)</string>
     <string name="engine_webview">Android WebView</string>
     <string name="engine_chromium">Chromium (in-app fullscreen)</string>
+    <string name="lock_task_mode">Enable lock task kiosk mode (device owner)</string>
+
     <string name="admin_password">Admin password</string>
     <string name="confirm_admin_password">Confirm admin password</string>
     <string name="set_admin_password">Set admin password</string>
@@ -25,20 +47,107 @@
     <string name="password_cleared_success">Admin password cleared</string>
     <string name="password_mismatch">Passwords do not match</string>
     <string name="password_too_short">Use at least 4 characters</string>
+    <string name="require_password_exit_only">Require password for Exit only</string>
+    <string name="admin_unlock_timeout_minutes">Admin unlock timeout (minutes)</string>
+
     <string name="invalid_home_assistant_url">Enter a valid Home Assistant URL (http:// or https://).</string>
     <string name="warning_cleartext_http">Warning: HTTP traffic is unencrypted. Prefer HTTPS when possible.</string>
     <string name="home_assistant_url">Home Assistant URL</string>
     <string name="dashboard_path">Dashboard path</string>
     <string name="reload_interval_seconds">Reload interval (seconds)</string>
     <string name="append_kiosk_auto">Append ?kiosk automatically</string>
+    <string name="auto_reload_on_failures">Auto-reload when crashes/network failures happen</string>
+
+    <string name="allow_mixed_content">Allow mixed content (HTTP inside HTTPS)</string>
+    <string name="allow_third_party_cookies">Allow third-party cookies</string>
+    <string name="allow_autoplay">Allow autoplay media</string>
+    <string name="desktop_mode">Force desktop user-agent mode</string>
+    <string name="custom_user_agent">Custom user-agent override (optional)</string>
+
+    <string name="watchdog_enabled">Enable watchdog ping &amp; auto-recovery</string>
+    <string name="watchdog_ping_path">Watchdog ping path (example: api/)</string>
+    <string name="watchdog_interval_seconds">Watchdog interval (seconds)</string>
+
+    <string name="enable_profile_schedule">Enable scheduled profile switching</string>
+    <string name="home_profile_path">Home profile path</string>
+    <string name="wall_profile_path">Wall profile path</string>
+    <string name="night_profile_path">Night profile path</string>
+    <string name="home_start_hour">Home hour</string>
+    <string name="wall_start_hour">Wall hour</string>
+    <string name="night_start_hour">Night hour</string>
+
+    <string name="maintenance_window_enabled">Enable daily maintenance window</string>
+    <string name="maintenance_hour">Maintenance hour</string>
+    <string name="maintenance_minute">Maintenance minute</string>
+    <string name="ambient_mode_enabled">Enable ambient dim mode</string>
+    <string name="ambient_dim_after_seconds">Dim after idle (seconds)</string>
+    <string name="ambient_brightness_percent">Dim brightness (%)</string>
+
+    <string name="updates_enabled">Enable update checks</string>
+    <string name="github_repo_slug">GitHub repo (owner/repo)</string>
+    <string name="update_check_interval_hours">Update check interval (hours)</string>
+    <string name="check_updates_now">Check updates now</string>
+    <string name="checking_updates">Checking GitHub releases...</string>
+    <string name="invalid_repo_slug">Repo must be in owner/repo format.</string>
+    <string name="up_to_date_version">You are up to date (%1$s)</string>
+    <string name="update_available_title">Update %1$s available</string>
+    <string name="update_download_prompt">Download and install %1$s now?</string>
+    <string name="download_update">Download update</string>
+    <string name="update_download_started">Update download started</string>
+    <string name="update_download_failed">Update download failed</string>
+    <string name="update_available_status">Update %1$s available (%2$s)</string>
+    <string name="update_found_no_apk">Release %1$s found but no APK asset was attached.</string>
+    <string name="update_check_failed">Update check failed: %1$s</string>
+    <string name="update_available_toast">Update %1$s is available</string>
+
     <string name="keep_screen_on">Keep screen always on</string>
     <string name="auto_start_boot">Auto-start after boot</string>
     <string name="fullscreen_mode">Fullscreen immersive mode</string>
-    <string name="effective_url">Effective dashboard URL</string>
+
     <string name="save_settings">Save settings</string>
     <string name="reload_dashboard">Reload dashboard</string>
     <string name="test_url">Test URL</string>
     <string name="testing_url">Testing...</string>
+    <string name="reachable_http">Reachable (HTTP %1$d)</string>
+    <string name="responded_http">URL responded with HTTP %1$d</string>
+    <string name="test_failed">Test failed: %1$s</string>
+    <string name="unknown_error">Unknown error</string>
     <string name="reset_defaults">Reset to defaults</string>
+    <string name="export_config">Export config</string>
+    <string name="import_config">Import config</string>
+    <string name="paste_config_json">Paste JSON config here</string>
+    <string name="empty_config">Config input is empty.</string>
+    <string name="config_imported">Config imported</string>
+    <string name="import_failed">Import failed: %1$s</string>
+    <string name="open_diagnostics">Open diagnostics</string>
+    <string name="exit_kiosk">Exit kiosk</string>
+
+    <string name="diagnostics_title">Diagnostics</string>
+    <string name="diagnostics_subtitle">Runtime health, network status, and engine telemetry.</string>
+    <string name="refresh_diagnostics">Refresh diagnostics</string>
+    <string name="export_diagnostics">Export diagnostics</string>
+    <string name="diag_engine">Engine: %1$s</string>
+    <string name="diag_webrtc">WebRTC: %1$s, %2$s</string>
+    <string name="diag_network">Network: %1$s (last event: %2$s)</string>
+    <string name="diag_url">Last URL: %1$s</string>
+    <string name="diag_load">Last load: %1$s</string>
+    <string name="diag_watchdog">Watchdog: %1$s</string>
+    <string name="diag_update">Updates: %1$s</string>
+    <string name="diag_crash">Last crash: %1$s (%2$s)</string>
+
+    <string name="blocked_navigation">Blocked navigation to unsupported URL</string>
+    <string name="engine_restarted">Dashboard engine restarted</string>
+
+    <string name="recovery_network_lost">Network disconnected</string>
+    <string name="recovery_waiting">Waiting for network and retrying automatically...</string>
+    <string name="recovery_reconnected">Network restored</string>
+    <string name="recovery_retry_scheduled">Auto-recovery scheduled</string>
+    <string name="recovery_retry_details">Retrying in %1$d seconds</string>
+    <string name="recovery_service_unreachable">Health endpoint unreachable</string>
+    <string name="recovery_restarting_engine">Restarting browser engine</string>
+    <string name="recovery_back_online">Service recovered</string>
+    <string name="recovery_maintenance">Maintenance window active</string>
+    <string name="recovery_maintenance_desc">Refreshing dashboard and clearing temporary state.</string>
+
     <string name="admin_gesture_desc">Hidden admin gesture zone</string>
 </resources>

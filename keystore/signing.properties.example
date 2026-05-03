@@ -1,0 +1,4 @@
+storeFile=keystore/kioskzen-release.jks
+storePassword=REPLACE_WITH_STORE_PASSWORD
+keyAlias=key0
+keyPassword=REPLACE_WITH_KEY_PASSWORD
