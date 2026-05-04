@@ -11,6 +11,10 @@ Website:
 
 This app was built to solve one specific problem: camera/video streams that work in Firefox but fail in many WebView-only kiosk apps.
 
+## Screenshot
+
+![KioskZen tablet screenshot](docs/images/rsz_kioskzen_screen_manual_crop.png)
+
 ## What it does
 
 - Runs Home Assistant dashboards in fullscreen kiosk mode

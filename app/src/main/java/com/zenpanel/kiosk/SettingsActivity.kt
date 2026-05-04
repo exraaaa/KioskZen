@@ -13,6 +13,7 @@ import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.widget.doAfterTextChanged
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.tabs.TabLayout
 import com.zenpanel.kiosk.databinding.ActivitySettingsBinding
@@ -92,6 +93,28 @@ class SettingsActivity : AppCompatActivity() {
                 else -> ThemeMode.SYSTEM
             }
             applyThemeInstantly(selectedTheme)
+        }
+
+        binding.switchLocalControlEnabled.setOnCheckedChangeListener { _, _ ->
+            if (isBindingUi) return@setOnCheckedChangeListener
+            updateLocalControlUiState()
+            updateLocalControlAccessText()
+        }
+        binding.inputLocalControlPort.doAfterTextChanged {
+            if (isBindingUi) return@doAfterTextChanged
+            updateLocalControlAccessText()
+        }
+
+        binding.btnDiscoverHomeAssistant.setOnClickListener {
+            discoverHomeAssistantNow()
+        }
+
+        binding.btnApplyLocalControl.setOnClickListener {
+            if (saveSettings(reloadNow = false)) {
+                setResult(RESULT_OK, intentWithControlPanelApply())
+                Toast.makeText(this, getString(R.string.settings_saved), Toast.LENGTH_SHORT).show()
+                finish()
+            }
         }
 
         binding.btnSaveSettings.setOnClickListener {
@@ -261,6 +284,7 @@ class SettingsActivity : AppCompatActivity() {
         binding.switchFullscreen.isChecked = settings.fullscreen
         binding.switchLockTaskMode.isChecked = settings.lockTaskMode
         binding.switchAutoReloadOnFailure.isChecked = settings.autoReloadOnFailure
+        binding.switchAutoDiscoverHomeAssistant.isChecked = settings.autoDiscoverHomeAssistant
 
         binding.switchWatchdogEnabled.isChecked = settings.watchdogEnabled
         binding.inputWatchdogPath.setText(settings.watchdogPingPath)
@@ -289,8 +313,13 @@ class SettingsActivity : AppCompatActivity() {
         binding.inputAmbientBrightness.setText(settings.ambientBrightnessPercent.toString())
         binding.switchPresenceWake.isChecked = settings.presenceWakeEnabled
         binding.inputPresenceWakeCooldown.setText(settings.presenceWakeCooldownSeconds.toString())
+        binding.switchLocalControlEnabled.isChecked = settings.localControlEnabled
+        binding.inputLocalControlPort.setText(settings.localControlPort.toString())
 
         binding.currentUrlValue.text = prefs.buildDashboardUrl(settings)
+        binding.discoveryStatusValue.text = getString(R.string.discovery_status_idle)
+        updateLocalControlUiState()
+        updateLocalControlAccessText()
         updateAdminPasswordStatus()
         isBindingUi = false
     }
@@ -325,6 +354,8 @@ class SettingsActivity : AppCompatActivity() {
             ?: current.ambientBrightnessPercent
         val presenceWakeCooldown = binding.inputPresenceWakeCooldown.text?.toString()?.trim()?.toIntOrNull()
             ?: current.presenceWakeCooldownSeconds
+        val localControlPort = binding.inputLocalControlPort.text?.toString()?.trim()?.toIntOrNull()
+            ?: current.localControlPort
 
         val selectedEngine = when (binding.radioEngineGroup.checkedRadioButtonId) {
             R.id.radio_engine_webview -> BrowserEngine.WEBVIEW
@@ -349,6 +380,7 @@ class SettingsActivity : AppCompatActivity() {
             fullscreen = binding.switchFullscreen.isChecked,
             lockTaskMode = binding.switchLockTaskMode.isChecked,
             autoReloadOnFailure = binding.switchAutoReloadOnFailure.isChecked,
+            autoDiscoverHomeAssistant = binding.switchAutoDiscoverHomeAssistant.isChecked,
             watchdogEnabled = binding.switchWatchdogEnabled.isChecked,
             watchdogPingPath = binding.inputWatchdogPath.text?.toString().orEmpty(),
             watchdogPingIntervalSeconds = watchdogInterval,
@@ -376,7 +408,10 @@ class SettingsActivity : AppCompatActivity() {
             ambientDimAfterSeconds = ambientDimAfter,
             ambientBrightnessPercent = ambientBrightness,
             presenceWakeEnabled = binding.switchPresenceWake.isChecked,
-            presenceWakeCooldownSeconds = presenceWakeCooldown
+            presenceWakeCooldownSeconds = presenceWakeCooldown,
+            localControlEnabled = binding.switchLocalControlEnabled.isChecked,
+            localControlPort = localControlPort,
+            localControlPreviewEnabled = current.localControlPreviewEnabled
         )
     }
 
@@ -387,6 +422,19 @@ class SettingsActivity : AppCompatActivity() {
         if (!KioskPreferences.isHttpOrHttpsUrl(normalizedBaseUrl)) {
             Toast.makeText(this, getString(R.string.invalid_home_assistant_url), Toast.LENGTH_SHORT)
                 .show()
+            return false
+        }
+
+        if (settings.localControlPort !in KioskPreferences.MIN_LOCAL_CONTROL_PORT..KioskPreferences.MAX_LOCAL_CONTROL_PORT) {
+            Toast.makeText(
+                this,
+                getString(
+                    R.string.invalid_local_control_port,
+                    KioskPreferences.MIN_LOCAL_CONTROL_PORT,
+                    KioskPreferences.MAX_LOCAL_CONTROL_PORT
+                ),
+                Toast.LENGTH_SHORT
+            ).show()
             return false
         }
 
@@ -403,6 +451,8 @@ class SettingsActivity : AppCompatActivity() {
             }
         }
         binding.currentUrlValue.text = prefs.buildDashboardUrl(settings)
+        updateLocalControlUiState()
+        updateLocalControlAccessText()
         if (normalizedBaseUrl.startsWith("http://", ignoreCase = true)) {
             Toast.makeText(this, getString(R.string.warning_cleartext_http), Toast.LENGTH_LONG).show()
         }
@@ -411,6 +461,99 @@ class SettingsActivity : AppCompatActivity() {
             setResult(RESULT_OK, intentWithReload())
         }
         return true
+    }
+
+    private fun discoverHomeAssistantNow() {
+        val candidateSettings = readSettingsFromUi()
+        val baseSettings = prefs.load().copy(
+            autoDiscoverHomeAssistant = candidateSettings.autoDiscoverHomeAssistant
+        )
+        prefs.save(baseSettings)
+
+        binding.btnDiscoverHomeAssistant.isEnabled = false
+        binding.btnDiscoverHomeAssistant.text = getString(R.string.discovering_home_assistant)
+        binding.discoveryStatusValue.text = getString(R.string.discovering_home_assistant)
+
+        scope.launch {
+            val discovered = withContext(Dispatchers.IO) {
+                HomeAssistantDiscovery.discoverCandidates(this@SettingsActivity)
+            }
+
+            binding.btnDiscoverHomeAssistant.isEnabled = true
+            binding.btnDiscoverHomeAssistant.text = getString(R.string.discover_home_assistant_now)
+
+            if (discovered.isEmpty()) {
+                binding.discoveryStatusValue.text = getString(R.string.discovery_status_not_found)
+                Toast.makeText(
+                    this@SettingsActivity,
+                    getString(R.string.discovery_status_not_found),
+                    Toast.LENGTH_SHORT
+                ).show()
+                return@launch
+            }
+
+            showDiscoveredServersDialog(discovered)
+        }
+    }
+
+    private fun showDiscoveredServersDialog(
+        candidates: List<HomeAssistantDiscoveryResult>
+    ) {
+        val labels = candidates.map { candidate ->
+            "${candidate.baseUrl} (${candidate.source})"
+        }.toTypedArray()
+
+        val currentUrl = KioskPreferences.normalizeBaseUrl(
+            readSettingsFromUi().homeAssistantUrl
+        )
+        var selectedIndex = candidates.indexOfFirst {
+            it.baseUrl.equals(currentUrl, ignoreCase = true)
+        }.let { if (it >= 0) it else 0 }
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.discovery_select_title)
+            .setSingleChoiceItems(labels, selectedIndex) { _, which ->
+                selectedIndex = which
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(R.string.connect_selected_server) { _, _ ->
+                val selected = candidates.getOrNull(selectedIndex) ?: return@setPositiveButton
+                val merged = prefs.load().copy(homeAssistantUrl = selected.baseUrl)
+                prefs.save(merged)
+                bindSettingsToUi(prefs.load())
+                binding.discoveryStatusValue.text =
+                    getString(R.string.discovery_status_found, selected.baseUrl)
+                setResult(RESULT_OK, intentWithReload())
+                Toast.makeText(
+                    this,
+                    getString(R.string.discovery_connected_toast, selected.baseUrl),
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+            .show()
+    }
+
+    private fun updateLocalControlUiState() {
+        val panelEnabled = binding.switchLocalControlEnabled.isChecked
+        binding.inputLocalControlPort.isEnabled = panelEnabled
+        binding.btnApplyLocalControl.isEnabled = true
+    }
+
+    private fun updateLocalControlAccessText() {
+        if (!binding.switchLocalControlEnabled.isChecked) {
+            binding.localControlAccessValue.text = getString(R.string.local_control_access_disabled)
+            return
+        }
+
+        val rawPort = binding.inputLocalControlPort.text?.toString()?.trim()?.toIntOrNull()
+            ?: KioskPreferences.DEFAULT_LOCAL_CONTROL_PORT
+        val clampedPort = KioskPreferences.clampInt(
+            rawPort,
+            KioskPreferences.MIN_LOCAL_CONTROL_PORT,
+            KioskPreferences.MAX_LOCAL_CONTROL_PORT
+        )
+        val url = LocalControlServer.discoverPrimaryUrl(clampedPort)
+        binding.localControlAccessValue.text = getString(R.string.local_control_access_url, url)
     }
 
     private fun saveAdminPassword() {
@@ -702,6 +845,10 @@ class SettingsActivity : AppCompatActivity() {
         putExtra(EXTRA_EXIT_APP, true)
     }
 
+    private fun intentWithControlPanelApply() = Intent().apply {
+        putExtra(EXTRA_APPLY_CONTROL_PANEL, true)
+    }
+
     private data class SectionNav(
         val label: String,
         val view: View,
@@ -711,6 +858,7 @@ class SettingsActivity : AppCompatActivity() {
     companion object {
         const val EXTRA_RELOAD_NOW = "reload_now"
         const val EXTRA_EXIT_APP = "exit_app"
+        const val EXTRA_APPLY_CONTROL_PANEL = "apply_control_panel"
         private const val MIN_ADMIN_PASSWORD_LENGTH = 4
         private const val STATE_SELECTED_TAB = "state_selected_tab"
     }

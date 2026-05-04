@@ -324,6 +324,7 @@ dependencies {
     implementation("com.google.android.material:material:1.12.0")
     implementation("com.google.mlkit:face-detection:16.1.7")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    implementation("org.nanohttpd:nanohttpd:2.3.1")
 
     // GeckoView (Mozilla engine).
     implementation("org.mozilla.geckoview:geckoview:147.0.20260212191108")

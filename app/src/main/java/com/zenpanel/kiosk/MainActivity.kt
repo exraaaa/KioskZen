@@ -90,6 +90,9 @@ class MainActivity : AppCompatActivity() {
     private var pendingWebPermissionRequest: PermissionRequest? = null
     private var watchdogJob: Job? = null
     private var maintenanceJob: Job? = null
+    private var autoDiscoveryJob: Job? = null
+    private var localControlServer: LocalControlServer? = null
+    private var localControlServerPort = -1
     private var pendingPresenceWakePermissionRequest = false
     private var pendingStartupCameraPermissionRequest = false
     private var presenceWakeAnalysis: ImageAnalysis? = null
@@ -103,6 +106,7 @@ class MainActivity : AppCompatActivity() {
     private var watchdogFailureCount = 0
     private var isAmbientDimmed = false
     private var updateCheckInProgress = false
+    private var autoDiscoveryAttempted = false
     private var isPresenceWakeFrameInFlight = false
     private var lastPresenceWakeAtMillis = 0L
     private var presenceWakeRequested = false
@@ -165,6 +169,7 @@ class MainActivity : AppCompatActivity() {
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             applyWindowSettings()
             applySchedulers()
+            refreshLocalControlServer()
             if (result.resultCode == RESULT_OK &&
                 result.data?.getBooleanExtra(SettingsActivity.EXTRA_EXIT_APP, false) == true
             ) {
@@ -218,6 +223,7 @@ class MainActivity : AppCompatActivity() {
         registerNetworkMonitoring()
         applyWindowSettings()
         maybePromptStartupCameraPermission()
+        refreshLocalControlServer()
         applySchedulers()
         loadDashboard()
         maybeRunAutoUpdateCheck()
@@ -235,6 +241,7 @@ class MainActivity : AppCompatActivity() {
         applyWindowSettings()
         resetAmbientTimer()
         applyPresenceWakePolicy()
+        refreshLocalControlServer()
     }
 
     override fun onPause() {
@@ -257,7 +264,9 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        autoDiscoveryJob?.cancel()
         unregisterNetworkMonitoring()
+        stopLocalControlServer()
         presenceWakeRequested = false
         stopPresenceWakePipeline()
         mainHandler.removeCallbacksAndMessages(null)
@@ -367,6 +376,41 @@ class MainActivity : AppCompatActivity() {
                 applyWebEngineProfile(settings)
                 binding.webView.loadUrl(url)
             }
+        }
+    }
+
+    private fun maybeAutoDiscoverAndConnect(force: Boolean, reason: String) {
+        if (!force && autoDiscoveryAttempted) {
+            return
+        }
+
+        val settings = prefs.load()
+        if (!force && !settings.autoDiscoverHomeAssistant) {
+            return
+        }
+
+        autoDiscoveryAttempted = true
+        autoDiscoveryJob?.cancel()
+        autoDiscoveryJob = scope.launch {
+            val found = withContext(Dispatchers.IO) {
+                HomeAssistantDiscovery.discover(this@MainActivity)
+            } ?: return@launch
+
+            val current = prefs.load()
+            val normalizedCurrent = KioskPreferences.normalizeBaseUrl(current.homeAssistantUrl)
+            if (normalizedCurrent.equals(found.baseUrl, ignoreCase = true)) {
+                return@launch
+            }
+
+            val updated = current.copy(homeAssistantUrl = found.baseUrl)
+            prefs.save(updated)
+            prefs.recordLastLoadStatus("Auto discovery connected: ${found.baseUrl} ($reason)")
+            loadDashboard()
+            Toast.makeText(
+                this@MainActivity,
+                getString(R.string.discovery_connected_toast, found.baseUrl),
+                Toast.LENGTH_SHORT
+            ).show()
         }
     }
 
@@ -1130,6 +1174,151 @@ class MainActivity : AppCompatActivity() {
                 permissionLauncher.launch(arrayOf(Manifest.permission.CAMERA))
             }
             .show()
+    }
+
+    private fun startLocalControlServer(port: Int) {
+        val callbacks = object : LocalControlCallbacks {
+            override fun status(): LocalControlStatus {
+                val settings = prefs.load()
+                val dashboard = loadedDashboardUrl.ifBlank { prefs.buildDashboardUrl(settings) }
+                val selectedEngine = (currentEngine ?: settings.browserEngine).name
+                return LocalControlStatus(
+                    appVersion = currentVersionName(),
+                    engine = selectedEngine,
+                    dashboardUrl = dashboard,
+                    homeAssistantUrl = settings.homeAssistantUrl,
+                    dashboardPath = settings.dashboardPath,
+                    appendKiosk = settings.appendKiosk,
+                    reloadIntervalSeconds = settings.reloadIntervalSeconds,
+                    autoReloadOnFailure = settings.autoReloadOnFailure,
+                    fullscreen = settings.fullscreen,
+                    keepScreenOn = settings.keepScreenOn,
+                    diagnostics = prefs.diagnosticsSnapshot()
+                )
+            }
+
+            override fun reloadDashboard() {
+                mainHandler.post { loadDashboard() }
+            }
+
+            override fun restartEngine() {
+                mainHandler.post { recreateCurrentEngine() }
+            }
+
+            override fun openSettings() {
+                mainHandler.post {
+                    startActivity(Intent(this@MainActivity, SettingsActivity::class.java))
+                }
+            }
+
+            override fun openUrl(url: String) {
+                mainHandler.post {
+                    val settings = prefs.load()
+                    activeSettings = settings
+                    applyLockTaskMode(settings)
+                    switchEngine(settings.browserEngine)
+                    loadedDashboardUrl = url
+                    prefs.recordLastUrl(url)
+                    binding.recoveryOverlay.visibility = View.GONE
+                    when (settings.browserEngine) {
+                        BrowserEngine.GECKO -> session?.loadUri(url)
+                        BrowserEngine.WEBVIEW, BrowserEngine.CHROMIUM_CUSTOM_TAB -> {
+                            binding.webView.stopLoading()
+                            applyWebEngineProfile(settings)
+                            binding.webView.loadUrl(url)
+                        }
+                    }
+                }
+            }
+
+            override fun saveDashboardSettings(
+                homeAssistantUrl: String,
+                dashboardPath: String,
+                appendKiosk: Boolean,
+                reloadIntervalSeconds: Int,
+                autoReloadOnFailure: Boolean
+            ): Result<Unit> {
+                return runCatching {
+                    val current = prefs.load()
+                    val updated = current.copy(
+                        homeAssistantUrl = homeAssistantUrl,
+                        dashboardPath = dashboardPath,
+                        appendKiosk = appendKiosk,
+                        reloadIntervalSeconds = reloadIntervalSeconds,
+                        autoReloadOnFailure = autoReloadOnFailure
+                    )
+                    prefs.save(updated)
+                }
+            }
+
+            override fun discoverHomeAssistantServers(): Result<List<HomeAssistantDiscoveryResult>> {
+                return runCatching {
+                    HomeAssistantDiscovery.discoverCandidates(this@MainActivity)
+                }
+            }
+
+            override fun connectToHomeAssistantServer(baseUrl: String): Result<Unit> {
+                return runCatching {
+                    val updated = prefs.load().copy(
+                        homeAssistantUrl = KioskPreferences.normalizeBaseUrl(baseUrl)
+                    )
+                    prefs.save(updated)
+                    prefs.recordLastLoadStatus("Control discovery connected: ${updated.homeAssistantUrl}")
+                    mainHandler.post { loadDashboard() }
+                }
+            }
+
+            override fun applyDisplayFlags(fullscreen: Boolean, keepScreenOn: Boolean) {
+                val updated = prefs.load().copy(
+                    fullscreen = fullscreen,
+                    keepScreenOn = keepScreenOn
+                )
+                prefs.save(updated)
+                mainHandler.post { applyWindowSettings() }
+            }
+        }
+
+        localControlServer = LocalControlServer(prefs, callbacks, port).also { server ->
+            server.startSafely()
+                .onSuccess {
+                    localControlServerPort = server.activePort()
+                    val localAddress = server.primaryLocalUrl()
+                    prefs.recordLastLoadStatus("Local control: $localAddress")
+                }
+                .onFailure { error ->
+                    prefs.recordLastLoadStatus("Local control start failed: ${error.message}")
+                    Log.w(TAG, "Failed to start local control server", error)
+                    localControlServer = null
+                    localControlServerPort = -1
+                }
+        }
+    }
+
+    private fun refreshLocalControlServer() {
+        val settings = prefs.load()
+        if (!settings.localControlEnabled) {
+            stopLocalControlServer()
+            return
+        }
+
+        val desiredPort = KioskPreferences.clampInt(
+            settings.localControlPort,
+            KioskPreferences.MIN_LOCAL_CONTROL_PORT,
+            KioskPreferences.MAX_LOCAL_CONTROL_PORT
+        )
+        val shouldRestart = localControlServer == null || localControlServerPort != desiredPort
+        if (!shouldRestart) {
+            return
+        }
+
+        stopLocalControlServer()
+        startLocalControlServer(desiredPort)
+    }
+
+    private fun stopLocalControlServer() {
+        localControlServer?.stopSafely()
+        localControlServer = null
+        localControlServerPort = -1
     }
 
     private fun analyzePresenceWakeFrame(imageProxy: ImageProxy) {

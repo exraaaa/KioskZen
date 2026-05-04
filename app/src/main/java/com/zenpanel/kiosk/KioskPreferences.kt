@@ -74,7 +74,11 @@ data class KioskSettings(
     val ambientDimAfterSeconds: Int,
     val ambientBrightnessPercent: Int,
     val presenceWakeEnabled: Boolean,
-    val presenceWakeCooldownSeconds: Int
+    val presenceWakeCooldownSeconds: Int,
+    val autoDiscoverHomeAssistant: Boolean,
+    val localControlEnabled: Boolean,
+    val localControlPort: Int,
+    val localControlPreviewEnabled: Boolean
 )
 
 data class DiagnosticsSnapshot(
@@ -216,6 +220,23 @@ class KioskPreferences(context: Context) {
                 ),
                 MIN_PRESENCE_WAKE_COOLDOWN_SECONDS,
                 MAX_PRESENCE_WAKE_COOLDOWN_SECONDS
+            ),
+            autoDiscoverHomeAssistant = prefs.getBoolean(
+                KEY_AUTO_DISCOVER_HOME_ASSISTANT,
+                DEFAULT_AUTO_DISCOVER_HOME_ASSISTANT
+            ),
+            localControlEnabled = prefs.getBoolean(
+                KEY_LOCAL_CONTROL_ENABLED,
+                DEFAULT_LOCAL_CONTROL_ENABLED
+            ),
+            localControlPort = clampInt(
+                prefs.getInt(KEY_LOCAL_CONTROL_PORT, DEFAULT_LOCAL_CONTROL_PORT),
+                MIN_LOCAL_CONTROL_PORT,
+                MAX_LOCAL_CONTROL_PORT
+            ),
+            localControlPreviewEnabled = prefs.getBoolean(
+                KEY_LOCAL_CONTROL_PREVIEW_ENABLED,
+                DEFAULT_LOCAL_CONTROL_PREVIEW_ENABLED
             )
         )
     }
@@ -313,6 +334,20 @@ class KioskPreferences(context: Context) {
                     MAX_PRESENCE_WAKE_COOLDOWN_SECONDS
                 )
             )
+            .putBoolean(KEY_AUTO_DISCOVER_HOME_ASSISTANT, settings.autoDiscoverHomeAssistant)
+            .putBoolean(KEY_LOCAL_CONTROL_ENABLED, settings.localControlEnabled)
+            .putInt(
+                KEY_LOCAL_CONTROL_PORT,
+                clampInt(
+                    settings.localControlPort,
+                    MIN_LOCAL_CONTROL_PORT,
+                    MAX_LOCAL_CONTROL_PORT
+                )
+            )
+            .putBoolean(
+                KEY_LOCAL_CONTROL_PREVIEW_ENABLED,
+                settings.localControlPreviewEnabled
+            )
             .apply()
     }
 
@@ -356,7 +391,11 @@ class KioskPreferences(context: Context) {
             ambientDimAfterSeconds = DEFAULT_AMBIENT_DIM_AFTER_SECONDS,
             ambientBrightnessPercent = DEFAULT_AMBIENT_BRIGHTNESS_PERCENT,
             presenceWakeEnabled = DEFAULT_PRESENCE_WAKE_ENABLED,
-            presenceWakeCooldownSeconds = DEFAULT_PRESENCE_WAKE_COOLDOWN_SECONDS
+            presenceWakeCooldownSeconds = DEFAULT_PRESENCE_WAKE_COOLDOWN_SECONDS,
+            autoDiscoverHomeAssistant = DEFAULT_AUTO_DISCOVER_HOME_ASSISTANT,
+            localControlEnabled = DEFAULT_LOCAL_CONTROL_ENABLED,
+            localControlPort = DEFAULT_LOCAL_CONTROL_PORT,
+            localControlPreviewEnabled = DEFAULT_LOCAL_CONTROL_PREVIEW_ENABLED
         )
         save(defaults)
         return defaults
@@ -511,6 +550,10 @@ class KioskPreferences(context: Context) {
             put("ambientBrightnessPercent", settings.ambientBrightnessPercent)
             put("presenceWakeEnabled", settings.presenceWakeEnabled)
             put("presenceWakeCooldownSeconds", settings.presenceWakeCooldownSeconds)
+            put("autoDiscoverHomeAssistant", settings.autoDiscoverHomeAssistant)
+            put("localControlEnabled", settings.localControlEnabled)
+            put("localControlPort", settings.localControlPort)
+            put("localControlPreviewEnabled", settings.localControlPreviewEnabled)
         }
         return json.toString(2)
     }
@@ -578,6 +621,22 @@ class KioskPreferences(context: Context) {
             presenceWakeCooldownSeconds = json.optInt(
                 "presenceWakeCooldownSeconds",
                 current.presenceWakeCooldownSeconds
+            ),
+            autoDiscoverHomeAssistant = json.optBoolean(
+                "autoDiscoverHomeAssistant",
+                current.autoDiscoverHomeAssistant
+            ),
+            localControlEnabled = json.optBoolean(
+                "localControlEnabled",
+                current.localControlEnabled
+            ),
+            localControlPort = json.optInt(
+                "localControlPort",
+                current.localControlPort
+            ),
+            localControlPreviewEnabled = json.optBoolean(
+                "localControlPreviewEnabled",
+                current.localControlPreviewEnabled
             )
         )
         save(merged)
@@ -657,6 +716,10 @@ class KioskPreferences(context: Context) {
         private const val KEY_AMBIENT_BRIGHTNESS_PERCENT = "ambient_brightness_percent"
         private const val KEY_PRESENCE_WAKE_ENABLED = "presence_wake_enabled"
         private const val KEY_PRESENCE_WAKE_COOLDOWN_SECONDS = "presence_wake_cooldown_seconds"
+        private const val KEY_AUTO_DISCOVER_HOME_ASSISTANT = "auto_discover_home_assistant"
+        private const val KEY_LOCAL_CONTROL_ENABLED = "local_control_enabled"
+        private const val KEY_LOCAL_CONTROL_PORT = "local_control_port"
+        private const val KEY_LOCAL_CONTROL_PREVIEW_ENABLED = "local_control_preview_enabled"
         private const val KEY_STARTUP_CAMERA_PROMPT_SHOWN = "startup_camera_prompt_shown"
 
         private const val KEY_DIAG_LAST_ENGINE = "diag_last_engine"
@@ -714,6 +777,10 @@ class KioskPreferences(context: Context) {
         const val DEFAULT_AMBIENT_BRIGHTNESS_PERCENT = 25
         const val DEFAULT_PRESENCE_WAKE_ENABLED = false
         const val DEFAULT_PRESENCE_WAKE_COOLDOWN_SECONDS = 8
+        const val DEFAULT_AUTO_DISCOVER_HOME_ASSISTANT = false
+        const val DEFAULT_LOCAL_CONTROL_ENABLED = true
+        const val DEFAULT_LOCAL_CONTROL_PORT = 8099
+        const val DEFAULT_LOCAL_CONTROL_PREVIEW_ENABLED = false
 
         const val MIN_RELOAD_INTERVAL_SECONDS = 5
         const val MAX_RELOAD_INTERVAL_SECONDS = 600
@@ -733,6 +800,8 @@ class KioskPreferences(context: Context) {
         const val MAX_AMBIENT_BRIGHTNESS_PERCENT = 100
         const val MIN_PRESENCE_WAKE_COOLDOWN_SECONDS = 2
         const val MAX_PRESENCE_WAKE_COOLDOWN_SECONDS = 60
+        const val MIN_LOCAL_CONTROL_PORT = 1024
+        const val MAX_LOCAL_CONTROL_PORT = 65535
 
         fun normalizeBaseUrl(value: String): String {
             val trimmed = value.trim().ifBlank { DEFAULT_HOME_ASSISTANT_URL }

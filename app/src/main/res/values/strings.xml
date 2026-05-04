@@ -54,6 +54,13 @@
     <string name="not_now">Not now</string>
     <string name="require_password_exit_only">Require password for Exit only</string>
     <string name="admin_unlock_timeout_minutes">Admin unlock timeout (minutes)</string>
+    <string name="local_control_panel">Browser Control Panel (LAN)</string>
+    <string name="local_control_enabled">Enable browser control panel server</string>
+    <string name="local_control_port">Control panel port (1024-65535)</string>
+    <string name="apply_control_panel_changes">Apply control panel changes now</string>
+    <string name="local_control_access_disabled">Control panel URL: disabled</string>
+    <string name="local_control_access_url">Control panel URL: %1$s</string>
+    <string name="invalid_local_control_port">Control panel port must be between %1$d and %2$d.</string>
 
     <string name="invalid_home_assistant_url">Enter a valid Home Assistant URL (http:// or https://).</string>
     <string name="warning_cleartext_http">Warning: HTTP traffic is unencrypted. Prefer HTTPS when possible.</string>
@@ -62,6 +69,15 @@
     <string name="reload_interval_seconds">Reload interval (seconds)</string>
     <string name="append_kiosk_auto">Append ?kiosk automatically</string>
     <string name="auto_reload_on_failures">Auto-reload when crashes/network failures happen</string>
+    <string name="auto_discover_home_assistant">Auto-find Home Assistant on startup</string>
+    <string name="discover_home_assistant_now">Discover and connect now</string>
+    <string name="discovering_home_assistant">Discovering Home Assistant...</string>
+    <string name="discovery_status_idle">Discovery status: idle</string>
+    <string name="discovery_status_found">Discovery status: connected to %1$s</string>
+    <string name="discovery_status_not_found">Discovery status: no Home Assistant server found on local network.</string>
+    <string name="discovery_connected_toast">Connected to %1$s</string>
+    <string name="discovery_select_title">Select Home Assistant server</string>
+    <string name="connect_selected_server">Connect selected server</string>
 
     <string name="allow_mixed_content">Allow mixed content (HTTP inside HTTPS)</string>
     <string name="allow_third_party_cookies">Allow third-party cookies</string>
@@ -90,6 +106,7 @@
     <string name="presence_wake_enabled">Wake on face detection</string>
     <string name="presence_wake_cooldown_seconds">Presence wake cooldown (seconds)</string>
     <string name="presence_wake_notice">Uses the front camera while this app is open to wake from ambient dim when a face is detected.</string>
+    <string name="presence_wake_battery_notice">Face wake uses continuous camera analysis and can increase battery use.</string>
 
     <string name="updates_enabled">Enable update checks</string>
     <string name="github_repo_slug">GitHub repo (owner/repo)</string>
