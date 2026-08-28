@@ -1,5 +1,9 @@
 # KioskZen
 
+> **Status: Archived**
+>
+> KioskZen is no longer under active development and will not receive further updates.
+
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/exraaaa)
 
 KioskZen is a free, open source Android kiosk app for Home Assistant dashboards. 
